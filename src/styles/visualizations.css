@@ -433,17 +433,24 @@
 
 /* Touch interaction states for mobile */
 @media (pointer: coarse) {
-    #hero-forest.touch-active .forest-eye {
-        /* Faster transitions during active touch */
+    #hero-forest.touch-active .forest-eye,
+    #hero-forest.gyro-active .forest-eye {
+        /* Faster transitions during active interaction */
         transition: transform 0.08s ease-out, text-shadow 0.15s ease;
     }
 
-    #hero-forest.touch-active .forest-eye.tracking {
-        /* Enhanced glow during touch */
+    #hero-forest.touch-active .forest-eye.tracking,
+    #hero-forest.gyro-active .forest-eye.tracking {
+        /* Enhanced glow during interaction */
         text-shadow:
             0 0 20px currentColor,
             0 0 40px currentColor,
             0 0 70px currentColor;
+    }
+
+    /* Smoother transitions for gyro mode */
+    #hero-forest.gyro-active .forest-eye {
+        transition: transform 0.12s ease-out, text-shadow 0.2s ease;
     }
 
     /* Larger tap target for touch devices */
@@ -479,6 +486,47 @@
     }
 
     #hero-forest.touch-active::before {
+        opacity: 0;
+    }
+
+    /* Tilt mode toggle button */
+    .tilt-mode-toggle {
+        position: absolute;
+        bottom: 8px;
+        right: 8px;
+        padding: 6px 10px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 10px;
+        color: rgba(180, 200, 220, 0.6);
+        background: rgba(10, 12, 20, 0.7);
+        border: 1px solid rgba(180, 200, 220, 0.2);
+        border-radius: 4px;
+        cursor: pointer;
+        z-index: 25;
+        transition: all 0.3s ease;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .tilt-mode-toggle:hover,
+    .tilt-mode-toggle:focus {
+        color: rgba(180, 200, 220, 0.9);
+        border-color: rgba(180, 200, 220, 0.4);
+        background: rgba(20, 25, 40, 0.8);
+    }
+
+    .tilt-mode-toggle.active {
+        color: rgba(100, 200, 180, 0.9);
+        border-color: rgba(100, 200, 180, 0.4);
+        background: rgba(20, 40, 35, 0.8);
+    }
+
+    /* Update hint when gyro is active */
+    #hero-forest.gyro-active::before {
+        content: 'tilt phone to move eyes';
+        opacity: 1;
+    }
+
+    #hero-forest.gyro-active.touch-active::before {
         opacity: 0;
     }
 }

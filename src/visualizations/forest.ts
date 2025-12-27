@@ -658,8 +658,92 @@ export function initHeroForest(): void {
         handlePointerMove(e.clientX, e.clientY);
     });
 
-    // Mobile: Touch-based eye tracking
+    // Mobile: Touch-based eye tracking + optional gyroscope
     if (isMobile) {
+        let gyroEnabled = false;
+        let lastGyroUpdate = 0;
+        const GYRO_THROTTLE = 50;
+
+        // Gyroscope handler
+        const handleOrientation = (event: DeviceOrientationEvent) => {
+            // Don't update if touch is active (touch takes priority)
+            if (isTouchActive || !container) return;
+            if (event.beta === null && event.gamma === null) return;
+
+            const now = performance.now();
+            if (now - lastGyroUpdate < GYRO_THROTTLE) return;
+            lastGyroUpdate = now;
+
+            const beta = event.beta ?? 0;
+            const gamma = event.gamma ?? 0;
+
+            const rect = container.getBoundingClientRect();
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+
+            // Map tilt to position (gamma = left/right, beta = forward/back)
+            const normalizedGamma = Math.max(-45, Math.min(45, gamma)) / 45;
+            const normalizedBeta = Math.max(-20, Math.min(60, beta - 20)) / 40;
+
+            const gyroX = centerX + (normalizedGamma * centerX * 1.5);
+            const gyroY = centerY + (normalizedBeta * centerY * 1.2);
+
+            handlePointerMove(rect.left + gyroX, rect.top + gyroY, false);
+        };
+
+        // Create tilt mode toggle button
+        const tiltButton = document.createElement('button');
+        tiltButton.className = 'tilt-mode-toggle';
+        tiltButton.innerHTML = '📱 tilt mode';
+        tiltButton.setAttribute('aria-label', 'Enable tilt tracking - eyes follow phone movement');
+        container.appendChild(tiltButton);
+
+        // Handle tilt button click - permission request MUST be in direct click handler
+        tiltButton.addEventListener('click', function() {
+            if (gyroEnabled) {
+                // Disable gyro
+                gyroEnabled = false;
+                window.removeEventListener('deviceorientation', handleOrientation);
+                container?.classList.remove('gyro-active');
+                tiltButton.innerHTML = '📱 tilt mode';
+                tiltButton.classList.remove('active');
+                return;
+            }
+
+            // Check if DeviceOrientationEvent exists and needs permission (iOS 13+)
+            const DOE = DeviceOrientationEvent as unknown as {
+                requestPermission?: () => Promise<string>;
+            };
+
+            if (typeof DOE.requestPermission === 'function') {
+                // iOS 13+ - must request permission
+                DOE.requestPermission()
+                    .then((response: string) => {
+                        if (response === 'granted') {
+                            gyroEnabled = true;
+                            window.addEventListener('deviceorientation', handleOrientation, { passive: true });
+                            container?.classList.add('gyro-active');
+                            tiltButton.innerHTML = '📱 tilt mode ✓';
+                            tiltButton.classList.add('active');
+                        } else {
+                            tiltButton.innerHTML = '📱 denied';
+                            setTimeout(() => { tiltButton.innerHTML = '📱 tilt mode'; }, 2000);
+                        }
+                    })
+                    .catch(() => {
+                        tiltButton.innerHTML = '📱 error';
+                        setTimeout(() => { tiltButton.innerHTML = '📱 tilt mode'; }, 2000);
+                    });
+            } else {
+                // Non-iOS or older iOS - just enable (permission not needed)
+                gyroEnabled = true;
+                window.addEventListener('deviceorientation', handleOrientation, { passive: true });
+                container?.classList.add('gyro-active');
+                tiltButton.innerHTML = '📱 tilt mode ✓';
+                tiltButton.classList.add('active');
+            }
+        });
+
         // Touch handling for mobile
         document.addEventListener('touchstart', (e: TouchEvent) => {
             if (e.touches.length > 0) {
