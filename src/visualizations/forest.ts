@@ -658,34 +658,40 @@ export function initHeroForest(): void {
         handlePointerMove(e.clientX, e.clientY);
     });
 
-    // Mobile: Use gyroscope for eye tracking (feels more natural than touch)
-    if (isMobile && 'DeviceOrientationEvent' in window) {
+    // Mobile: Combined touch + optional gyroscope for eye tracking
+    if (isMobile) {
         let gyroEnabled = false;
+        let gyroAttempted = false;
         let lastGyroUpdate = 0;
         const GYRO_THROTTLE = 50; // 20fps for smooth but efficient updates
 
         // Request permission on iOS 13+
-        const requestGyroPermission = async () => {
-            if (typeof (DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }).requestPermission === 'function') {
+        const requestGyroPermission = async (): Promise<boolean> => {
+            const DeviceOrientationEventWithPermission = DeviceOrientationEvent as unknown as {
+                requestPermission?: () => Promise<string>;
+            };
+            if (typeof DeviceOrientationEventWithPermission.requestPermission === 'function') {
                 try {
-                    const permission = await (DeviceOrientationEvent as unknown as { requestPermission: () => Promise<string> }).requestPermission();
+                    const permission = await DeviceOrientationEventWithPermission.requestPermission();
                     return permission === 'granted';
                 } catch {
                     return false;
                 }
             }
-            return true; // Non-iOS devices don't need permission
+            // Non-iOS devices: check if we actually get events
+            return true;
         };
 
         const handleOrientation = (event: DeviceOrientationEvent) => {
-            if (!gyroEnabled || !container) return;
+            if (!container) return;
+
+            // Check if we're getting real data (some devices report null/0)
+            if (event.beta === null && event.gamma === null) return;
 
             const now = performance.now();
             if (now - lastGyroUpdate < GYRO_THROTTLE) return;
             lastGyroUpdate = now;
 
-            // beta: front-to-back tilt (-180 to 180, 0 = flat)
-            // gamma: left-to-right tilt (-90 to 90, 0 = flat)
             const beta = event.beta ?? 0;
             const gamma = event.gamma ?? 0;
 
@@ -694,69 +700,54 @@ export function initHeroForest(): void {
             const centerX = rect.width / 2;
             const centerY = rect.height / 2;
 
-            // Sensitivity: how much tilt (degrees) to move across the container
-            // gamma range: -45 to 45 maps to full width
-            // beta range: -20 to 60 (accounting for phone held at angle) maps to full height
+            // gamma: left-to-right tilt (-45 to 45 maps to full width)
+            // beta: front-to-back tilt (adjusted for phone held at angle)
             const normalizedGamma = Math.max(-45, Math.min(45, gamma)) / 45;
-            const normalizedBeta = Math.max(-20, Math.min(60, beta - 20)) / 40; // Offset for natural holding angle
+            const normalizedBeta = Math.max(-20, Math.min(60, beta - 20)) / 40;
 
             forestMouseX = centerX + (normalizedGamma * centerX * 1.5);
             forestMouseY = centerY + (normalizedBeta * centerY * 1.2);
 
             // Update eyes with gyro-derived position
-            isTouchActive = true; // Use faster transitions
-            updateEyesFromPosition();
+            const absRect = container.getBoundingClientRect();
+            handlePointerMove(absRect.left + forestMouseX, absRect.top + forestMouseY, false);
         };
 
-        // Tap to enable gyroscope (needed for iOS permission + user engagement)
-        const enableGyro = async () => {
-            if (gyroEnabled) return;
+        // Try to enable gyroscope
+        const tryEnableGyro = async () => {
+            if (gyroAttempted) return;
+            gyroAttempted = true;
+
+            if (!('DeviceOrientationEvent' in window)) return;
 
             const granted = await requestGyroPermission();
             if (granted) {
                 gyroEnabled = true;
                 window.addEventListener('deviceorientation', handleOrientation, { passive: true });
                 container?.classList.add('gyro-active');
-
-                // Visual feedback that gyro is now active
-                forestEyes.forEach(eye => {
-                    eye.el.style.transition = 'transform 0.3s ease-out';
-                });
             }
         };
 
-        // First tap on forest enables gyroscope tracking
-        container.addEventListener('touchstart', (e) => {
-            if (!gyroEnabled) {
-                enableGyro();
-            }
-            // Also handle tap-to-attract for immediate feedback
+        // Touch handling - works with or without gyro
+        document.addEventListener('touchstart', (e: TouchEvent) => {
             if (e.touches.length > 0) {
-                const touch = e.touches[0];
-                const rect = container.getBoundingClientRect();
-                forestMouseX = touch.clientX - rect.left;
-                forestMouseY = touch.clientY - rect.top;
                 isTouchActive = true;
+                touchStartTime = performance.now();
+                const touch = e.touches[0];
+
+                // Immediate feedback - eyes snap to touch point
                 handlePointerMove(touch.clientX, touch.clientY, true);
+
+                // Mark as activated (hides hint)
+                container?.classList.add('touch-active');
+
+                // Try to enable gyro on first touch (needed for iOS permission)
+                if (!gyroAttempted) {
+                    tryEnableGyro();
+                }
             }
         }, { passive: true });
 
-        container.addEventListener('touchend', () => {
-            // Don't reset isTouchActive if gyro is enabled - keep faster transitions
-            if (!gyroEnabled) {
-                isTouchActive = false;
-            }
-        }, { passive: true });
-
-        // Helper to update eyes from current forestMouseX/Y (for gyro)
-        function updateEyesFromPosition() {
-            if (!container) return;
-            const rect = container.getBoundingClientRect();
-            handlePointerMove(rect.left + forestMouseX, rect.top + forestMouseY, false);
-        }
-
-    } else {
-        // Fallback: Traditional touch tracking for devices without gyroscope
         document.addEventListener('touchmove', (e: TouchEvent) => {
             if (e.touches.length > 0) {
                 const touch = e.touches[0];
@@ -764,26 +755,23 @@ export function initHeroForest(): void {
             }
         }, { passive: true });
 
-        document.addEventListener('touchstart', (e: TouchEvent) => {
-            if (e.touches.length > 0) {
-                isTouchActive = true;
-                touchStartTime = performance.now();
-                const touch = e.touches[0];
-                handlePointerMove(touch.clientX, touch.clientY, true);
-                container?.classList.add('touch-active');
-            }
-        }, { passive: true });
-
         document.addEventListener('touchend', () => {
-            isTouchActive = false;
-            container?.classList.remove('touch-active');
+            // Keep touch-active class to hide the hint permanently
+            // But reset isTouchActive flag for transition speeds
+            if (!gyroEnabled) {
+                isTouchActive = false;
+            }
 
+            // Smooth settle after quick tap
             if (performance.now() - touchStartTime < 200) {
                 forestEyes.forEach(eye => {
                     eye.el.style.transition = 'transform 0.3s ease-out';
                 });
             }
         }, { passive: true });
+
+    } else {
+        // Desktop: mouse tracking only (no touch handling needed)
     }
 
     // Personality-aware blinking - slower interval on mobile for performance
