@@ -433,24 +433,17 @@
 
 /* Touch interaction states for mobile */
 @media (pointer: coarse) {
-    #hero-forest.touch-active .forest-eye,
-    #hero-forest.gyro-active .forest-eye {
-        /* Faster transitions during active interaction */
+    #hero-forest.touch-active .forest-eye {
+        /* Faster transitions during active touch */
         transition: transform 0.08s ease-out, text-shadow 0.15s ease;
     }
 
-    #hero-forest.touch-active .forest-eye.tracking,
-    #hero-forest.gyro-active .forest-eye.tracking {
-        /* Enhanced glow during interaction */
+    #hero-forest.touch-active .forest-eye.tracking {
+        /* Enhanced glow during touch */
         text-shadow:
             0 0 20px currentColor,
             0 0 40px currentColor,
             0 0 70px currentColor;
-    }
-
-    /* Gyroscope mode: smoother, more fluid transitions */
-    #hero-forest.gyro-active .forest-eye {
-        transition: transform 0.15s ease-out, text-shadow 0.2s ease;
     }
 
     /* Larger tap target for touch devices */
@@ -465,24 +458,26 @@
         pointer-events: none;
     }
 
-    /* Hint to tap the forest on mobile */
+    /* Hint to interact with the forest on mobile */
     #hero-forest::before {
-        content: 'tap to activate';
+        content: 'drag finger to control the eyes';
         position: absolute;
-        bottom: 15%;
+        bottom: 20%;
         left: 50%;
         transform: translateX(-50%);
         font-family: 'JetBrains Mono', monospace;
-        font-size: 10px;
-        color: rgba(180, 200, 220, 0.3);
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
+        font-size: 11px;
+        color: rgba(180, 200, 220, 0.5);
+        letter-spacing: 0.05em;
+        text-transform: lowercase;
         opacity: 1;
-        transition: opacity 0.5s ease;
+        transition: opacity 0.8s ease;
         pointer-events: none;
+        text-align: center;
+        white-space: nowrap;
+        z-index: 20;
     }
 
-    #hero-forest.gyro-active::before,
     #hero-forest.touch-active::before {
         opacity: 0;
     }

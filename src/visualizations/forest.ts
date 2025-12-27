@@ -658,77 +658,9 @@ export function initHeroForest(): void {
         handlePointerMove(e.clientX, e.clientY);
     });
 
-    // Mobile: Combined touch + optional gyroscope for eye tracking
+    // Mobile: Touch-based eye tracking
     if (isMobile) {
-        let gyroEnabled = false;
-        let gyroAttempted = false;
-        let lastGyroUpdate = 0;
-        const GYRO_THROTTLE = 50; // 20fps for smooth but efficient updates
-
-        // Request permission on iOS 13+
-        const requestGyroPermission = async (): Promise<boolean> => {
-            const DeviceOrientationEventWithPermission = DeviceOrientationEvent as unknown as {
-                requestPermission?: () => Promise<string>;
-            };
-            if (typeof DeviceOrientationEventWithPermission.requestPermission === 'function') {
-                try {
-                    const permission = await DeviceOrientationEventWithPermission.requestPermission();
-                    return permission === 'granted';
-                } catch {
-                    return false;
-                }
-            }
-            // Non-iOS devices: check if we actually get events
-            return true;
-        };
-
-        const handleOrientation = (event: DeviceOrientationEvent) => {
-            if (!container) return;
-
-            // Check if we're getting real data (some devices report null/0)
-            if (event.beta === null && event.gamma === null) return;
-
-            const now = performance.now();
-            if (now - lastGyroUpdate < GYRO_THROTTLE) return;
-            lastGyroUpdate = now;
-
-            const beta = event.beta ?? 0;
-            const gamma = event.gamma ?? 0;
-
-            // Map tilt to virtual cursor position within container
-            const rect = container.getBoundingClientRect();
-            const centerX = rect.width / 2;
-            const centerY = rect.height / 2;
-
-            // gamma: left-to-right tilt (-45 to 45 maps to full width)
-            // beta: front-to-back tilt (adjusted for phone held at angle)
-            const normalizedGamma = Math.max(-45, Math.min(45, gamma)) / 45;
-            const normalizedBeta = Math.max(-20, Math.min(60, beta - 20)) / 40;
-
-            forestMouseX = centerX + (normalizedGamma * centerX * 1.5);
-            forestMouseY = centerY + (normalizedBeta * centerY * 1.2);
-
-            // Update eyes with gyro-derived position
-            const absRect = container.getBoundingClientRect();
-            handlePointerMove(absRect.left + forestMouseX, absRect.top + forestMouseY, false);
-        };
-
-        // Try to enable gyroscope
-        const tryEnableGyro = async () => {
-            if (gyroAttempted) return;
-            gyroAttempted = true;
-
-            if (!('DeviceOrientationEvent' in window)) return;
-
-            const granted = await requestGyroPermission();
-            if (granted) {
-                gyroEnabled = true;
-                window.addEventListener('deviceorientation', handleOrientation, { passive: true });
-                container?.classList.add('gyro-active');
-            }
-        };
-
-        // Touch handling - works with or without gyro
+        // Touch handling for mobile
         document.addEventListener('touchstart', (e: TouchEvent) => {
             if (e.touches.length > 0) {
                 isTouchActive = true;
@@ -740,11 +672,6 @@ export function initHeroForest(): void {
 
                 // Mark as activated (hides hint)
                 container?.classList.add('touch-active');
-
-                // Try to enable gyro on first touch (needed for iOS permission)
-                if (!gyroAttempted) {
-                    tryEnableGyro();
-                }
             }
         }, { passive: true });
 
@@ -756,11 +683,7 @@ export function initHeroForest(): void {
         }, { passive: true });
 
         document.addEventListener('touchend', () => {
-            // Keep touch-active class to hide the hint permanently
-            // But reset isTouchActive flag for transition speeds
-            if (!gyroEnabled) {
-                isTouchActive = false;
-            }
+            isTouchActive = false;
 
             // Smooth settle after quick tap
             if (performance.now() - touchStartTime < 200) {
@@ -769,9 +692,6 @@ export function initHeroForest(): void {
                 });
             }
         }, { passive: true });
-
-    } else {
-        // Desktop: mouse tracking only (no touch handling needed)
     }
 
     // Personality-aware blinking - slower interval on mobile for performance
