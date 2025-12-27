@@ -418,14 +418,17 @@ export function initHeroForest(): void {
 
     // Performance: throttle pointer tracking on mobile
     let lastPointerUpdate = 0;
-    const POINTER_THROTTLE = isMobile ? 50 : 16; // 20fps on mobile, 60fps on desktop
+    const POINTER_THROTTLE = isMobile ? 33 : 16; // 30fps on mobile, 60fps on desktop
+    let isTouchActive = false;
+    let touchStartTime = 0;
 
     // Unified pointer tracking for mouse and touch
-    function handlePointerMove(clientX: number, clientY: number): void {
+    function handlePointerMove(clientX: number, clientY: number, isImmediateTouch = false): void {
         if (!container) return;
 
         const now = performance.now();
-        if (now - lastPointerUpdate < POINTER_THROTTLE) return;
+        // Skip throttle for immediate touch events (first touch or touch start)
+        if (!isImmediateTouch && now - lastPointerUpdate < POINTER_THROTTLE) return;
         lastPointerUpdate = now;
 
         const rect = container.getBoundingClientRect();
@@ -469,7 +472,9 @@ export function initHeroForest(): void {
             const profile = eye.profile;
             const ex = eye.x + 10;
             const ey = eye.y + 10;
-            const dist = Math.sqrt((forestMouseX - ex) ** 2 + (forestMouseY - ey) ** 2);
+            const rawDist = Math.sqrt((forestMouseX - ex) ** 2 + (forestMouseY - ey) ** 2);
+            // On touch, reduce effective distance to account for finger size (more generous hit area)
+            const dist = isTouchActive ? rawDist * 0.7 : rawDist;
 
             let angle: number;
             let effectiveOffset: number;
@@ -540,18 +545,21 @@ export function initHeroForest(): void {
             const oy = Math.sin(angle) * effectiveOffset;
 
             // Apply smooth transition based on personality and state
+            // Faster transitions during active touch for more responsive feel
+            const touchSpeedMultiplier = isTouchActive ? 0.5 : 1;
+
             if (eye.isInterrupted) {
-                eye.el.style.transition = 'transform 0.1s ease-out'; // Quick snap when interrupted
+                eye.el.style.transition = `transform ${0.1 * touchSpeedMultiplier}s ease-out`; // Quick snap when interrupted
             } else if (eye.pairedWith !== null) {
-                eye.el.style.transition = 'transform 0.5s ease-in-out'; // Slow, contemplative
+                eye.el.style.transition = `transform ${0.5 * touchSpeedMultiplier}s ease-in-out`; // Slow, contemplative
             } else if (eye.personality === 'ancient') {
-                eye.el.style.transition = 'transform 0.8s ease-out';
+                eye.el.style.transition = `transform ${0.8 * touchSpeedMultiplier}s ease-out`;
             } else if (eye.personality === 'hostile') {
-                eye.el.style.transition = 'transform 0.05s linear';
+                eye.el.style.transition = `transform ${0.05}s linear`; // Already fast, keep it
             } else if (eye.personality === 'indifferent') {
-                eye.el.style.transition = 'transform 0.4s ease-in-out';
+                eye.el.style.transition = `transform ${0.4 * touchSpeedMultiplier}s ease-in-out`;
             } else {
-                eye.el.style.transition = 'transform 0.15s ease-out';
+                eye.el.style.transition = `transform ${0.15 * touchSpeedMultiplier}s ease-out`;
             }
 
             eye.el.style.transform = `translate(${ox}px, ${oy}px)`;
@@ -650,18 +658,36 @@ export function initHeroForest(): void {
         handlePointerMove(e.clientX, e.clientY);
     });
 
-    // Touch tracking
+    // Touch tracking with immediate response
     document.addEventListener('touchmove', (e: TouchEvent) => {
         if (e.touches.length > 0) {
             const touch = e.touches[0];
-            handlePointerMove(touch.clientX, touch.clientY);
+            handlePointerMove(touch.clientX, touch.clientY, false);
         }
     }, { passive: true });
 
     document.addEventListener('touchstart', (e: TouchEvent) => {
         if (e.touches.length > 0) {
+            isTouchActive = true;
+            touchStartTime = performance.now();
             const touch = e.touches[0];
-            handlePointerMove(touch.clientX, touch.clientY);
+            // Immediate response on touch start - bypass throttle
+            handlePointerMove(touch.clientX, touch.clientY, true);
+
+            // Add visual feedback class to container
+            container?.classList.add('touch-active');
+        }
+    }, { passive: true });
+
+    document.addEventListener('touchend', () => {
+        isTouchActive = false;
+        container?.classList.remove('touch-active');
+
+        // If it was a quick tap (< 200ms), give eyes a moment to settle
+        if (performance.now() - touchStartTime < 200) {
+            forestEyes.forEach(eye => {
+                eye.el.style.transition = 'transform 0.3s ease-out';
+            });
         }
     }, { passive: true });
 

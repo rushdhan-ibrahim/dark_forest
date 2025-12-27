@@ -157,7 +157,7 @@ function createConstellationElements(): HTMLElement {
         width: 100%;
         height: 100%;
         pointer-events: none;
-        z-index: 4;
+        z-index: -5;
         opacity: 0;
         transition: opacity 1s ease;
     `;

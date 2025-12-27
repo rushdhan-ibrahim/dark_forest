@@ -11,12 +11,26 @@ export function initWindow(): void {
     let animationFrame: number | null = null;
     let isVisible = false;
 
+    // Check if we're on mobile (vertical layout)
+    function isMobileLayout(): boolean {
+        return window.matchMedia('(max-width: 480px)').matches;
+    }
+
     function animateWindow(): void {
         if (!closer || !isVisible || prefersReducedMotion()) return;
 
         position += 0.015;
         if (position > 66.66) position = 33.33;
-        closer.style.right = position + '%';
+
+        // On mobile, animate bottom (vertical), on desktop animate right (horizontal)
+        if (isMobileLayout()) {
+            closer.style.bottom = position + '%';
+            closer.style.right = '0';
+        } else {
+            closer.style.right = position + '%';
+            closer.style.bottom = '0';
+        }
+
         animationFrame = requestAnimationFrame(animateWindow);
     }
 

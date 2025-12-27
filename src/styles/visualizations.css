@@ -431,6 +431,34 @@
         0 0 80px currentColor;
 }
 
+/* Touch interaction states for mobile */
+@media (pointer: coarse) {
+    #hero-forest.touch-active .forest-eye {
+        /* Faster transitions during active touch */
+        transition: transform 0.08s ease-out, text-shadow 0.15s ease;
+    }
+
+    #hero-forest.touch-active .forest-eye.tracking {
+        /* Enhanced glow during touch interaction */
+        text-shadow:
+            0 0 20px currentColor,
+            0 0 40px currentColor,
+            0 0 70px currentColor;
+    }
+
+    /* Larger tap target for touch devices */
+    .forest-eye::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 48px;
+        height: 48px;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+    }
+}
+
 /* Sustained observation states */
 .forest-eye.being-observed {
     animation: observationPulse 1.5s ease-in-out infinite;
@@ -2072,6 +2100,36 @@
         bottom: auto;
     }
 
+    /* Holdout interactive mobile fixes */
+    #carol-choice-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-md);
+        padding: var(--space-md);
+        overflow: hidden;
+    }
+
+    #carol-choice-container #carol-figure {
+        font-size: 10px;
+        transform: scale(0.9);
+    }
+
+    #carol-choice-container #hive-crowd {
+        font-size: 8px;
+        transform: scale(0.85);
+        text-align: center;
+    }
+
+    #carol-choice-container #choice-text {
+        order: 0;
+    }
+
+    #carol-choice-container #bomb-crate {
+        font-size: 9px;
+        display: none;
+    }
+
     .ascii-star {
         transition: opacity 0.2s ease-out;
     }
@@ -2135,13 +2193,21 @@
 
     #mirror-container {
         flex-direction: column;
-        height: auto;
-        min-height: 280px;
+        height: 260px;
+        min-height: unset;
+        overflow: hidden;
     }
 
     .mirror-divide {
         width: 100%;
         height: 1px;
+        flex-shrink: 0;
+    }
+
+    .mirror-side {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
     }
 
     #star-layer-1 .ascii-star:nth-child(2n) {
@@ -2287,7 +2353,7 @@
     height: 300px;
     opacity: 0;
     transition: opacity 0.5s ease;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .transmission-journey.active {
@@ -2401,6 +2467,9 @@
     max-width: 500px;
     margin: var(--space-xl) auto 0;
     text-align: center;
+    position: relative;
+    z-index: 5;
+    background: transparent;
 }
 
 .transmission-question {
@@ -2805,18 +2874,37 @@
     }
 
     .credence-map {
-        height: 220px;
+        height: 200px;
         margin-bottom: 20px;
     }
 
+    .map-axes {
+        /* Position labels outside the dots area */
+        position: relative;
+        height: 0;
+    }
+
     .map-dots {
-        inset: 25px;
+        position: absolute;
+        top: 20px;
+        left: 0;
+        right: 0;
+        bottom: 20px;
     }
 
     /* Simplify axis labels on small screens */
     .axis-label {
         font-size: 7px;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.03em;
+    }
+
+    .axis-label.axis-top {
+        top: 0;
+    }
+
+    .axis-label.axis-bottom {
+        bottom: 0;
+        top: auto;
     }
 
     .axis-label.axis-left,
@@ -2832,6 +2920,7 @@
         left: auto;
         margin-top: var(--space-md);
         max-width: 100%;
+        padding: 0 var(--space-sm);
     }
 
     .cluster-info .cluster-name {
@@ -3028,8 +3117,75 @@
         padding: var(--space-lg);
     }
 
+    .real-sky-title {
+        font-size: 1.5rem;
+    }
+
+    .real-sky-location {
+        font-size: 0.75rem;
+    }
+
+    .real-sky-constellations {
+        font-size: 0.95rem;
+    }
+
+    .prompt-text {
+        font-size: 1.2rem;
+    }
+
+    .prompt-sub {
+        font-size: 0.9rem;
+    }
+
     .distance-annotation {
         display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    #real-sky-container {
+        height: 60vh;
+        min-height: 350px;
+    }
+
+    .real-sky-overlay {
+        padding: var(--space-md);
+        gap: var(--space-md);
+    }
+
+    .real-sky-header {
+        margin-bottom: auto;
+    }
+
+    .real-sky-info {
+        flex-shrink: 0;
+    }
+
+    .real-sky-prompt {
+        margin-top: auto;
+    }
+
+    .real-sky-title {
+        font-size: 1.25rem;
+        margin-bottom: var(--space-xs);
+    }
+
+    .real-sky-location {
+        font-size: 0.7rem;
+    }
+
+    .real-sky-constellations {
+        font-size: 0.85rem;
+        line-height: 1.4;
+    }
+
+    .prompt-text {
+        font-size: 1rem;
+    }
+
+    .prompt-sub {
+        font-size: 0.8rem;
+        line-height: 1.4;
     }
 }
 
