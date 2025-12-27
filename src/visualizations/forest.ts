@@ -416,9 +416,18 @@ export function initHeroForest(): void {
         }, 3000 + i * 1500); // Appear after solo eyes
     }
 
+    // Performance: throttle pointer tracking on mobile
+    let lastPointerUpdate = 0;
+    const POINTER_THROTTLE = isMobile ? 50 : 16; // 20fps on mobile, 60fps on desktop
+
     // Unified pointer tracking for mouse and touch
     function handlePointerMove(clientX: number, clientY: number): void {
         if (!container) return;
+
+        const now = performance.now();
+        if (now - lastPointerUpdate < POINTER_THROTTLE) return;
+        lastPointerUpdate = now;
+
         const rect = container.getBoundingClientRect();
         forestMouseX = clientX - rect.left;
         forestMouseY = clientY - rect.top;
@@ -656,12 +665,19 @@ export function initHeroForest(): void {
         }
     }, { passive: true });
 
-    // Personality-aware blinking
+    // Personality-aware blinking - slower interval on mobile for performance
+    const blinkInterval = isMobile ? 2000 : 1000;
     setInterval(() => {
         if (forestEyes.length > 0) {
-            forestEyes.forEach(eye => {
+            // On mobile, only check a subset of eyes per interval
+            const eyesToCheck = isMobile
+                ? [forestEyes[Math.floor(Math.random() * forestEyes.length)]]
+                : forestEyes;
+
+            eyesToCheck.forEach(eye => {
+                if (!eye) return;
                 // Check if this eye should blink based on personality
-                const blinkChance = eye.profile.blinkFrequency * 0.15;
+                const blinkChance = eye.profile.blinkFrequency * (isMobile ? 0.25 : 0.15);
 
                 if (blinkChance > 0 && Math.random() < blinkChance) {
                     eye.el.classList.add('blinking');
@@ -675,5 +691,5 @@ export function initHeroForest(): void {
                 }
             });
         }
-    }, 1000);  // Check more frequently, but probability is lower
+    }, blinkInterval);
 }

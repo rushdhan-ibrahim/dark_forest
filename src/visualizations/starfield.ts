@@ -163,9 +163,15 @@ export function initStarfield(): void {
 
     let starMouseX = 0;
     let starMouseY = 0;
+    let lastBrightnessUpdate = 0;
+    const BRIGHTNESS_THROTTLE = isMobile ? 50 : 16; // 20fps on mobile, 60fps on desktop
 
-    // Unified brightness update for mouse and touch
+    // Unified brightness update for mouse and touch - throttled for performance
     function updateStarBrightness(clientX: number, clientY: number): void {
+        const now = performance.now();
+        if (now - lastBrightnessUpdate < BRIGHTNESS_THROTTLE) return;
+        lastBrightnessUpdate = now;
+
         starMouseX = (clientX / window.innerWidth) * 100;
         starMouseY = (clientY / window.innerHeight) * 100;
 
@@ -173,7 +179,23 @@ export function initStarfield(): void {
             const star = starEl as HTMLElement;
             const sx = parseFloat(star.dataset.x || '0');
             const sy = parseFloat(star.dataset.y || '0');
-            const dist = Math.sqrt((sx - starMouseX) ** 2 + (sy - starMouseY) ** 2);
+
+            // Quick bounding box check first (cheaper than sqrt)
+            const dx = Math.abs(sx - starMouseX);
+            const dy = Math.abs(sy - starMouseY);
+
+            if (dx > 45 || dy > 45) {
+                // Too far - skip expensive sqrt, just reset
+                const baseOpacity = star.dataset.baseOpacity || '0.3';
+                if (star.style.opacity !== baseOpacity) {
+                    star.style.opacity = baseOpacity;
+                    star.classList.remove('bright');
+                }
+                return;
+            }
+
+            // Full distance check only for nearby stars
+            const dist = Math.sqrt(dx * dx + dy * dy);
             const baseOpacity = parseFloat(star.dataset.baseOpacity || '0');
 
             if (dist < 40) {
