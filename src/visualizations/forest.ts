@@ -662,9 +662,16 @@ export function initHeroForest(): void {
     if (isMobile) {
         let gyroEnabled = false;
         let lastGyroUpdate = 0;
-        const GYRO_THROTTLE = 50;
+        const GYRO_THROTTLE = 33; // ~30fps for smoother updates
 
-        // Gyroscope handler
+        // Smoothed gyro position (for interpolation)
+        let smoothGyroX = 0;
+        let smoothGyroY = 0;
+        let targetGyroX = 0;
+        let targetGyroY = 0;
+        const GYRO_SMOOTHING = 0.15; // Lower = smoother but slower response
+
+        // Gyroscope handler with smoothing
         const handleOrientation = (event: DeviceOrientationEvent) => {
             // Don't update if touch is active (touch takes priority)
             if (isTouchActive || !container) return;
@@ -682,13 +689,19 @@ export function initHeroForest(): void {
             const centerY = rect.height / 2;
 
             // Map tilt to position (gamma = left/right, beta = forward/back)
-            const normalizedGamma = Math.max(-45, Math.min(45, gamma)) / 45;
-            const normalizedBeta = Math.max(-20, Math.min(60, beta - 20)) / 40;
+            // Reduced sensitivity for more natural feel
+            const normalizedGamma = Math.max(-30, Math.min(30, gamma)) / 30;
+            const normalizedBeta = Math.max(-15, Math.min(45, beta - 15)) / 30;
 
-            const gyroX = centerX + (normalizedGamma * centerX * 1.5);
-            const gyroY = centerY + (normalizedBeta * centerY * 1.2);
+            // Calculate target position
+            targetGyroX = centerX + (normalizedGamma * centerX * 1.2);
+            targetGyroY = centerY + (normalizedBeta * centerY * 0.8);
 
-            handlePointerMove(rect.left + gyroX, rect.top + gyroY, false);
+            // Smooth interpolation (lerp) toward target
+            smoothGyroX += (targetGyroX - smoothGyroX) * GYRO_SMOOTHING;
+            smoothGyroY += (targetGyroY - smoothGyroY) * GYRO_SMOOTHING;
+
+            handlePointerMove(rect.left + smoothGyroX, rect.top + smoothGyroY, false);
         };
 
         // Create tilt mode toggle button
@@ -744,8 +757,19 @@ export function initHeroForest(): void {
             }
         });
 
+        // Check if touch target is an interactive element we should ignore
+        function shouldIgnoreTouch(target: EventTarget | null): boolean {
+            if (!target || !(target instanceof Element)) return false;
+            // Ignore buttons, links, and elements with specific classes
+            const ignoredSelectors = 'button, a, .audio-toggle, .tilt-mode-toggle, .nav-hamburger, input, textarea';
+            return target.closest(ignoredSelectors) !== null;
+        }
+
         // Touch handling for mobile
         document.addEventListener('touchstart', (e: TouchEvent) => {
+            // Don't track eyes when tapping UI elements
+            if (shouldIgnoreTouch(e.target)) return;
+
             if (e.touches.length > 0) {
                 isTouchActive = true;
                 touchStartTime = performance.now();
@@ -760,6 +784,9 @@ export function initHeroForest(): void {
         }, { passive: true });
 
         document.addEventListener('touchmove', (e: TouchEvent) => {
+            // Only track if we started tracking (isTouchActive)
+            if (!isTouchActive) return;
+
             if (e.touches.length > 0) {
                 const touch = e.touches[0];
                 handlePointerMove(touch.clientX, touch.clientY, false);
@@ -767,6 +794,8 @@ export function initHeroForest(): void {
         }, { passive: true });
 
         document.addEventListener('touchend', () => {
+            if (!isTouchActive) return;
+
             isTouchActive = false;
 
             // Smooth settle after quick tap
