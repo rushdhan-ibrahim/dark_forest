@@ -1,0 +1,135 @@
+{
+  "fragments": [
+    {
+      "text": "In the dark forest, every civilization is an armed hunter.",
+      "theme": "core",
+      "weight": 10
+    },
+    {
+      "text": "The universe is not silent. It is holding its breath.",
+      "theme": "silence",
+      "weight": 8
+    },
+    {
+      "text": "To be seen is to be vulnerable. To be known is to be destroyed.",
+      "theme": "exposure",
+      "weight": 7
+    },
+    {
+      "text": "They are not hiding from us. They are hiding from each other.",
+      "theme": "hiding",
+      "weight": 8
+    },
+    {
+      "text": "Four hundred years. That is how long your signal has been traveling.",
+      "theme": "distance",
+      "weight": 6
+    },
+    {
+      "text": "The chains of suspicion cannot be broken. Only lengthened.",
+      "theme": "suspicion",
+      "weight": 7
+    },
+    {
+      "text": "What you call hope, game theory calls a losing strategy.",
+      "theme": "hope",
+      "weight": 6
+    },
+    {
+      "text": "Every star you see might already be dead. Every civilization, silent.",
+      "theme": "silence",
+      "weight": 7
+    },
+    {
+      "text": "They watched us before we had fire. They will watch long after.",
+      "theme": "observation",
+      "weight": 8
+    },
+    {
+      "text": "The first one who speaks, dies. The first one who is found, dies.",
+      "theme": "core",
+      "weight": 9
+    },
+    {
+      "text": "Trust requires verification. Verification requires proximity. Proximity means death.",
+      "theme": "trust",
+      "weight": 7
+    },
+    {
+      "text": "We are not the hunters. We have never been the hunters.",
+      "theme": "revelation",
+      "weight": 8
+    },
+    {
+      "text": "A technological explosion looks identical to a threat.",
+      "theme": "technology",
+      "weight": 6
+    },
+    {
+      "text": "The safest civilization is the one that never existed.",
+      "theme": "existence",
+      "weight": 7
+    },
+    {
+      "text": "You cannot prove peaceful intent. You can only prove you exist.",
+      "theme": "communication",
+      "weight": 8
+    },
+    {
+      "text": "Every message is a confession. Every signal, a suicide note.",
+      "theme": "communication",
+      "weight": 9
+    },
+    {
+      "text": "The forest is patient. The forest has always been patient.",
+      "theme": "time",
+      "weight": 7
+    },
+    {
+      "text": "When you stare into the void, the void catalogs your coordinates.",
+      "theme": "observation",
+      "weight": 8
+    },
+    {
+      "text": "Light takes centuries to cross the dark. Destruction takes moments.",
+      "theme": "distance",
+      "weight": 7
+    },
+    {
+      "text": "There is no benevolence at scale. Only calculation.",
+      "theme": "scale",
+      "weight": 6
+    },
+    {
+      "text": "The absence of evidence is exactly what you would expect.",
+      "theme": "fermi",
+      "weight": 8
+    },
+    {
+      "text": "We broadcast our existence for a century. Now we wait.",
+      "theme": "broadcast",
+      "weight": 7
+    },
+    {
+      "text": "Carol chose silence. Carol chose to remain herself.",
+      "theme": "carol",
+      "weight": 6
+    },
+    {
+      "text": "The others do not hate. They do not love. They optimize.",
+      "theme": "alien",
+      "weight": 8
+    },
+    {
+      "text": "You are being watched. You have always been watched.",
+      "theme": "observation",
+      "weight": 9
+    }
+  ],
+  "personalityAffinities": {
+    "curious": ["observation", "fermi", "distance"],
+    "hostile": ["core", "exposure", "revelation"],
+    "indifferent": ["silence", "time", "scale"],
+    "ancient": ["existence", "trust", "alien", "carol"]
+  }
+}

@@ -1,0 +1,48 @@
+:root {
+    --void: #0a0a0f;
+    --deep-space: #111118;
+    --nebula: #1a1a24;
+    --card-bg: #13131a;
+
+    /* Text colors - Higher contrast */
+    --starlight: #f0eeeb;
+    --text-primary: #e4e2df;
+    --text-secondary: #a8a6a2;
+    --text-tertiary: #7d7b77;
+
+    /* Accent colors */
+    --cold-blue: #5a6a7f;
+    --bright-blue: #8aa4c6;
+    --warning-amber: #e0b285;
+    --danger-red: #d46b6b;
+    --hope-teal: #6a9e9e;
+    --accent-gold: #d4b46a;
+    --joining-magenta: #9e5a7f;
+    --joining-glow: #d48db8;
+    --network-purple: #7f5a9e;
+    --blue-giant: #b8d4ff;
+    --red-dwarf: #ffb8a8;
+
+    /* Spacing scale */
+    --space-xs: 0.25rem;
+    --space-sm: 0.5rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2rem;
+    --space-2xl: 3rem;
+    --space-3xl: 4rem;
+    --space-4xl: 6rem;
+
+    /* Typography scale */
+    --text-xs: 0.75rem;
+    --text-sm: 0.875rem;
+    --text-base: 1.0625rem;
+    --text-lg: 1.1875rem;
+    --text-xl: 1.375rem;
+    --text-2xl: 1.75rem;
+    --text-3xl: 2.25rem;
+    --text-4xl: 3rem;
+
+    /* Touch targets */
+    --touch-target-min: 48px;
+}

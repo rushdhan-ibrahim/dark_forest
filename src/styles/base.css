@@ -1,0 +1,115 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+    overflow-x: hidden;
+}
+
+body {
+    font-family: 'Spectral', Georgia, serif;
+    font-weight: 400;
+    background: var(--void);
+    color: var(--text-primary);
+    font-size: var(--text-base);
+    line-height: 1.75;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Skip link for screen readers */
+.skip-link {
+    position: absolute;
+    top: -100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--void);
+    color: var(--text-primary);
+    padding: 0.75rem 1.5rem;
+    border: 1px solid var(--starlight);
+    border-radius: 4px;
+    z-index: 10000;
+    text-decoration: none;
+    font-family: var(--font-body);
+}
+
+.skip-link:focus {
+    top: 1rem;
+}
+
+/* Focus states for accessibility */
+:focus-visible {
+    outline: 2px solid var(--hope-teal);
+    outline-offset: 2px;
+}
+
+a:focus-visible,
+button:focus-visible {
+    outline: 2px solid var(--hope-teal);
+    outline-offset: 2px;
+}
+
+/* Keyframe animations */
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes float {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(10px); }
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    html {
+        scroll-behavior: auto;
+    }
+}
+
+/* Touch device optimizations */
+@media (pointer: coarse) {
+    * {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+        -webkit-touch-callout: none;
+        touch-action: pan-y;
+    }
+
+    /* Prevent text selection on interactive elements */
+    button,
+    .ascii-btn,
+    .glass-node,
+    .forest-eye,
+    .collapsible-header,
+    .nav-links a {
+        -webkit-user-select: none;
+        user-select: none;
+    }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+    html {
+        font-size: 16px;
+    }
+
+    body {
+        font-size: 1rem;
+        line-height: 1.65;
+    }
+}
