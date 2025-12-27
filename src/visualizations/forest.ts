@@ -724,7 +724,7 @@ export function initHeroForest(): void {
         // Create tilt mode toggle button
         const tiltButton = document.createElement('button');
         tiltButton.className = 'tilt-mode-toggle';
-        tiltButton.innerHTML = '📱 tilt mode';
+        tiltButton.textContent = 'tilt mode';
         tiltButton.setAttribute('aria-label', 'Enable tilt tracking - eyes follow phone movement');
         container.appendChild(tiltButton);
 
@@ -735,7 +735,7 @@ export function initHeroForest(): void {
                 gyroEnabled = false;
                 window.removeEventListener('deviceorientation', handleOrientation);
                 container?.classList.remove('gyro-active');
-                tiltButton.innerHTML = '📱 tilt mode';
+                tiltButton.textContent = 'tilt mode';
                 tiltButton.classList.remove('active');
                 return;
             }
@@ -753,23 +753,23 @@ export function initHeroForest(): void {
                             gyroEnabled = true;
                             window.addEventListener('deviceorientation', handleOrientation, { passive: true });
                             container?.classList.add('gyro-active');
-                            tiltButton.innerHTML = '📱 tilt mode ✓';
+                            tiltButton.textContent = 'tilt mode ✓';
                             tiltButton.classList.add('active');
                         } else {
-                            tiltButton.innerHTML = '📱 denied';
-                            setTimeout(() => { tiltButton.innerHTML = '📱 tilt mode'; }, 2000);
+                            tiltButton.textContent = 'denied';
+                            setTimeout(() => { tiltButton.textContent = 'tilt mode'; }, 2000);
                         }
                     })
                     .catch(() => {
-                        tiltButton.innerHTML = '📱 error';
-                        setTimeout(() => { tiltButton.innerHTML = '📱 tilt mode'; }, 2000);
+                        tiltButton.textContent = 'error';
+                        setTimeout(() => { tiltButton.textContent = 'tilt mode'; }, 2000);
                     });
             } else {
                 // Non-iOS or older iOS - just enable (permission not needed)
                 gyroEnabled = true;
                 window.addEventListener('deviceorientation', handleOrientation, { passive: true });
                 container?.classList.add('gyro-active');
-                tiltButton.innerHTML = '📱 tilt mode ✓';
+                tiltButton.textContent = 'tilt mode ✓';
                 tiltButton.classList.add('active');
             }
         });
