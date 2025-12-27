@@ -53,9 +53,14 @@ export function initChain(): void {
         node.id = `chain-node-${i}`;
 
         // Shorter labels on mobile
-        const displayName = isSmallMobile ? data.name.substring(0, 5) : data.name.substring(0, 7);
         const boxWidth = isSmallMobile ? 5 : 7;
-        node.innerHTML = `╭${'─'.repeat(boxWidth)}╮<br>│${displayName.padStart(Math.ceil(boxWidth/2)).padEnd(boxWidth)}│<br>╰${'─'.repeat(boxWidth)}╯`;
+        const displayName = data.name.substring(0, boxWidth);
+        // Center the text properly within the box
+        const padTotal = boxWidth - displayName.length;
+        const padLeft = Math.floor(padTotal / 2);
+        const padRight = padTotal - padLeft;
+        const centeredName = ' '.repeat(padLeft) + displayName + ' '.repeat(padRight);
+        node.innerHTML = `╭${'─'.repeat(boxWidth)}╮<br>│${centeredName}│<br>╰${'─'.repeat(boxWidth)}╯`;
 
         node.style.left = (spacing + i * (nodeWidth + arrowWidth + spacing)) + 'px';
         node.style.color = data.color;

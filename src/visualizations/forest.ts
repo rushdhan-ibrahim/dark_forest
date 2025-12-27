@@ -662,16 +662,22 @@ export function initHeroForest(): void {
     if (isMobile) {
         let gyroEnabled = false;
         let lastGyroUpdate = 0;
-        const GYRO_THROTTLE = 33; // ~30fps for smoother updates
+        const GYRO_THROTTLE = 25; // ~40fps for fluid motion
 
-        // Smoothed gyro position (for interpolation)
+        // Smoothed gyro position with velocity for organic feel
         let smoothGyroX = 0;
         let smoothGyroY = 0;
+        let velocityX = 0;
+        let velocityY = 0;
         let targetGyroX = 0;
         let targetGyroY = 0;
-        const GYRO_SMOOTHING = 0.15; // Lower = smoother but slower response
 
-        // Gyroscope handler with smoothing
+        // Physics parameters for natural movement
+        const SPRING_STRENGTH = 0.08;  // How strongly position pulls toward target
+        const DAMPING = 0.85;          // Velocity decay (lower = more floaty)
+        const DEAD_ZONE = 3;           // Ignore tiny movements (degrees)
+
+        // Gyroscope handler with spring physics
         const handleOrientation = (event: DeviceOrientationEvent) => {
             // Don't update if touch is active (touch takes priority)
             if (isTouchActive || !container) return;
@@ -688,18 +694,29 @@ export function initHeroForest(): void {
             const centerX = rect.width / 2;
             const centerY = rect.height / 2;
 
-            // Map tilt to position (gamma = left/right, beta = forward/back)
-            // Reduced sensitivity for more natural feel
-            const normalizedGamma = Math.max(-30, Math.min(30, gamma)) / 30;
-            const normalizedBeta = Math.max(-15, Math.min(45, beta - 15)) / 30;
+            // Apply dead zone to prevent jitter when phone is still
+            const effectiveGamma = Math.abs(gamma) < DEAD_ZONE ? 0 : gamma;
+            const effectiveBeta = Math.abs(beta - 30) < DEAD_ZONE ? 30 : beta; // 30° is natural holding angle
+
+            // Map tilt to position with wider range for more expression
+            const normalizedGamma = Math.max(-40, Math.min(40, effectiveGamma)) / 40;
+            const normalizedBeta = Math.max(-10, Math.min(50, effectiveBeta - 30)) / 30;
 
             // Calculate target position
-            targetGyroX = centerX + (normalizedGamma * centerX * 1.2);
-            targetGyroY = centerY + (normalizedBeta * centerY * 0.8);
+            targetGyroX = centerX + (normalizedGamma * centerX * 1.4);
+            targetGyroY = centerY + (normalizedBeta * centerY * 1.0);
 
-            // Smooth interpolation (lerp) toward target
-            smoothGyroX += (targetGyroX - smoothGyroX) * GYRO_SMOOTHING;
-            smoothGyroY += (targetGyroY - smoothGyroY) * GYRO_SMOOTHING;
+            // Spring physics: velocity += (target - position) * spring
+            velocityX += (targetGyroX - smoothGyroX) * SPRING_STRENGTH;
+            velocityY += (targetGyroY - smoothGyroY) * SPRING_STRENGTH;
+
+            // Apply damping
+            velocityX *= DAMPING;
+            velocityY *= DAMPING;
+
+            // Update position
+            smoothGyroX += velocityX;
+            smoothGyroY += velocityY;
 
             handlePointerMove(rect.left + smoothGyroX, rect.top + smoothGyroY, false);
         };
