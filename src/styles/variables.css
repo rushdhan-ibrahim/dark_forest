@@ -23,6 +23,23 @@
     --blue-giant: #b8d4ff;
     --red-dwarf: #ffb8a8;
 
+    /* Cosmic events - Supernova */
+    --supernova-flash: #ffffff;
+    --supernova-core-hot: #fff8e0;
+    --supernova-core-warm: #ffd700;
+    --supernova-shockwave: #ff8c00;
+    --supernova-ejecta: #ff6600;
+    --supernova-remnant: #5a7a9f;
+
+    /* Cosmic events - Black hole */
+    --blackhole-void: #000000;
+    --blackhole-horizon-glow: rgba(80, 60, 40, 0.3);
+    --blackhole-photon-ring: rgba(255, 200, 150, 0.9);
+    --blackhole-disk-hot: #fff5e6;
+    --blackhole-disk-warm: #ffb366;
+    --blackhole-disk-cool: #ff6600;
+    --blackhole-lensing: rgba(255, 180, 120, 0.8);
+
     /* Spacing scale */
     --space-xs: 0.25rem;
     --space-sm: 0.5rem;

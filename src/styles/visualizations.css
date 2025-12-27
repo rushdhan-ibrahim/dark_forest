@@ -3538,6 +3538,1855 @@
 }
 
 /* ==========================================
+   ENHANCED SUPERNOVA & BLACK HOLE
+   ========================================== */
+
+/* Supernova container */
+.supernova-container {
+    position: absolute;
+    pointer-events: none;
+    z-index: 100;
+    transform: translate(-50%, -50%);
+}
+
+/* Supernova core - central explosion */
+.supernova-core {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: radial-gradient(
+        ellipse 55% 45% at 45% 45%,
+        var(--supernova-core-hot) 0%,
+        var(--supernova-core-warm) 30%,
+        var(--supernova-shockwave) 60%,
+        transparent 100%
+    );
+    box-shadow:
+        0 0 20px var(--supernova-core-warm),
+        0 0 40px var(--supernova-shockwave),
+        0 0 60px rgba(255, 140, 0, 0.4);
+    transition: transform 0.3s ease-out, opacity 0.5s ease;
+}
+
+/* Supernova shockwave ring */
+.supernova-shockwave {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 2px solid var(--supernova-shockwave);
+    box-shadow:
+        0 0 10px var(--supernova-shockwave),
+        0 0 20px rgba(255, 102, 0, 0.5),
+        inset 0 0 10px rgba(255, 140, 0, 0.3);
+    opacity: 0;
+    transition: width 1s ease-out, height 1s ease-out, opacity 0.5s ease;
+}
+
+.supernova-shockwave.expanding {
+    opacity: 1;
+}
+
+/* Supernova flash overlay */
+.supernova-flash {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(
+        ellipse at var(--flash-x, 50%) var(--flash-y, 50%),
+        rgba(255, 255, 255, 0.8) 0%,
+        rgba(255, 248, 224, 0.4) 20%,
+        transparent 60%
+    );
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0;
+    transition: opacity 0.1s ease-out;
+}
+
+.supernova-flash.active {
+    opacity: 1;
+    animation: flashFade 0.8s ease-out forwards;
+}
+
+@keyframes flashFade {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* Supernova ejecta particles */
+.supernova-ejecta {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 4px;
+    height: 60px;
+    background: linear-gradient(
+        to top,
+        transparent 0%,
+        var(--supernova-ejecta) 30%,
+        var(--supernova-core-warm) 70%,
+        var(--supernova-core-hot) 100%
+    );
+    border-radius: 2px;
+    transform-origin: bottom center;
+    opacity: 0;
+    filter: blur(1px);
+    box-shadow: 0 0 8px var(--supernova-ejecta);
+}
+
+.supernova-ejecta.visible {
+    opacity: 1;
+    animation: ejectaExpand 2s ease-out forwards;
+}
+
+@keyframes ejectaExpand {
+    0% {
+        height: 20px;
+        opacity: 1;
+    }
+    70% {
+        opacity: 0.8;
+    }
+    100% {
+        height: 120px;
+        opacity: 0;
+    }
+}
+
+/* Inner glow - soft halo around core */
+.supernova-inner-glow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        rgba(255, 255, 255, 0.6) 0%,
+        rgba(255, 248, 200, 0.4) 30%,
+        rgba(255, 200, 100, 0.2) 60%,
+        transparent 100%
+    );
+    filter: blur(8px);
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+/* Nebula clouds - irregular expanding gas clouds */
+.supernova-nebula {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.1);
+    border-radius: 45% 55% 50% 60% / 50% 45% 55% 50%;
+    filter: blur(12px);
+    mix-blend-mode: screen;
+    opacity: 0;
+    will-change: transform, opacity;
+}
+
+.supernova-nebula.nebula-1 {
+    width: 100px;
+    height: 90px;
+    background: radial-gradient(
+        ellipse 60% 50% at 40% 45%,
+        rgba(255, 200, 100, 0.7) 0%,
+        rgba(255, 140, 60, 0.4) 40%,
+        rgba(255, 100, 50, 0.2) 70%,
+        transparent 100%
+    );
+    animation: nebulaExpand1 4s ease-out forwards;
+}
+
+.supernova-nebula.nebula-2 {
+    width: 120px;
+    height: 100px;
+    background: radial-gradient(
+        ellipse 55% 60% at 55% 50%,
+        rgba(255, 180, 150, 0.6) 0%,
+        rgba(255, 120, 80, 0.3) 50%,
+        transparent 100%
+    );
+    animation: nebulaExpand2 5s ease-out 0.3s forwards;
+}
+
+.supernova-nebula.nebula-3 {
+    width: 80px;
+    height: 110px;
+    background: radial-gradient(
+        ellipse 50% 55% at 50% 55%,
+        rgba(200, 150, 255, 0.5) 0%,
+        rgba(150, 100, 200, 0.3) 40%,
+        transparent 100%
+    );
+    animation: nebulaExpand3 4.5s ease-out 0.5s forwards;
+}
+
+.supernova-nebula.nebula-4 {
+    width: 90px;
+    height: 85px;
+    background: radial-gradient(
+        ellipse 65% 45% at 45% 40%,
+        rgba(100, 150, 200, 0.4) 0%,
+        rgba(80, 120, 180, 0.2) 60%,
+        transparent 100%
+    );
+    animation: nebulaExpand4 5.5s ease-out 0.7s forwards;
+}
+
+@keyframes nebulaExpand1 {
+    0% {
+        transform: translate(-50%, -50%) scale(0.1) rotate(0deg);
+        opacity: 0;
+    }
+    15% {
+        opacity: 0.9;
+    }
+    50% {
+        opacity: 0.7;
+    }
+    100% {
+        transform: translate(-40%, -45%) scale(3.5) rotate(25deg);
+        opacity: 0;
+    }
+}
+
+@keyframes nebulaExpand2 {
+    0% {
+        transform: translate(-50%, -50%) scale(0.1) rotate(0deg);
+        opacity: 0;
+    }
+    15% {
+        opacity: 0.8;
+    }
+    100% {
+        transform: translate(-60%, -55%) scale(4) rotate(-20deg);
+        opacity: 0;
+    }
+}
+
+@keyframes nebulaExpand3 {
+    0% {
+        transform: translate(-50%, -50%) scale(0.1) rotate(0deg);
+        opacity: 0;
+    }
+    20% {
+        opacity: 0.7;
+    }
+    100% {
+        transform: translate(-45%, -60%) scale(3.2) rotate(40deg);
+        opacity: 0;
+    }
+}
+
+@keyframes nebulaExpand4 {
+    0% {
+        transform: translate(-50%, -50%) scale(0.1) rotate(0deg);
+        opacity: 0;
+    }
+    20% {
+        opacity: 0.6;
+    }
+    100% {
+        transform: translate(-55%, -40%) scale(3.8) rotate(-35deg);
+        opacity: 0;
+    }
+}
+
+/* Lens flares - elongated light rays from center */
+.supernova-flare {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 3px;
+    background: linear-gradient(
+        to top,
+        transparent 0%,
+        rgba(255, 255, 255, 0.3) 10%,
+        rgba(255, 255, 255, 0.9) 50%,
+        rgba(255, 255, 255, 0.3) 90%,
+        transparent 100%
+    );
+    transform-origin: bottom center;
+    filter: blur(1px);
+    opacity: 0;
+}
+
+.supernova-flare.visible {
+    animation: flareAppear 3s ease-out forwards;
+}
+
+@keyframes flareAppear {
+    0% {
+        opacity: 0;
+        height: 10px;
+    }
+    20% {
+        opacity: 0.9;
+        height: var(--flare-length);
+    }
+    80% {
+        opacity: 0.6;
+    }
+    100% {
+        opacity: 0;
+        height: var(--flare-length);
+    }
+}
+
+/* Secondary shockwave - faster, dimmer */
+.supernova-shockwave-secondary {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 200, 150, 0.6);
+    box-shadow:
+        0 0 6px rgba(255, 180, 120, 0.5),
+        inset 0 0 4px rgba(255, 200, 150, 0.2);
+    opacity: 0;
+}
+
+.supernova-shockwave-secondary.expanding {
+    animation: shockwaveSecondary 2s ease-out forwards;
+}
+
+@keyframes shockwaveSecondary {
+    0% {
+        width: 30px;
+        height: 30px;
+        opacity: 0;
+    }
+    10% {
+        opacity: 0.8;
+    }
+    100% {
+        width: 350px;
+        height: 350px;
+        opacity: 0;
+    }
+}
+
+/* Tertiary shockwave - fastest, thinnest */
+.supernova-shockwave-tertiary {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 1px solid rgba(200, 180, 255, 0.4);
+    box-shadow: 0 0 3px rgba(180, 150, 220, 0.3);
+    opacity: 0;
+}
+
+.supernova-shockwave-tertiary.expanding {
+    animation: shockwaveTertiary 1.5s ease-out forwards;
+}
+
+@keyframes shockwaveTertiary {
+    0% {
+        width: 40px;
+        height: 40px;
+        opacity: 0;
+    }
+    5% {
+        opacity: 0.6;
+    }
+    100% {
+        width: 400px;
+        height: 400px;
+        opacity: 0;
+    }
+}
+
+/* Supernova particles - small dots that fly outward */
+.supernova-particle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 0 4px white, 0 0 8px rgba(255, 200, 100, 0.8);
+    opacity: 0;
+    will-change: transform, opacity;
+}
+
+.supernova-particle.launched {
+    animation: particleFly var(--particle-duration) ease-out forwards;
+}
+
+@keyframes particleFly {
+    0% {
+        transform: translate(-50%, -50%);
+        opacity: 1;
+    }
+    30% {
+        opacity: 0.9;
+    }
+    100% {
+        transform: translate(
+            calc(-50% + var(--particle-dx)),
+            calc(-50% + var(--particle-dy))
+        );
+        opacity: 0;
+    }
+}
+
+/* Core color transition animation */
+.supernova-core.color-shifting {
+    animation: coreColorShift 8s ease-out forwards;
+}
+
+@keyframes coreColorShift {
+    0% {
+        background: radial-gradient(
+            ellipse 55% 45% at 45% 45%,
+            #ffffff 0%,
+            #fff8e0 30%,
+            #ffd700 60%,
+            rgba(255, 140, 0, 0.6) 100%
+        );
+        box-shadow:
+            0 0 30px rgba(255, 255, 255, 0.8),
+            0 0 60px rgba(255, 248, 200, 0.5),
+            0 0 100px rgba(255, 200, 100, 0.3);
+    }
+    25% {
+        background: radial-gradient(
+            ellipse 55% 45% at 45% 45%,
+            #fff8e0 0%,
+            #ffd700 30%,
+            #ff8c00 60%,
+            rgba(255, 100, 0, 0.4) 100%
+        );
+    }
+    50% {
+        background: radial-gradient(
+            ellipse 55% 45% at 45% 45%,
+            #ffcc66 0%,
+            #ff8c00 30%,
+            #ff4500 60%,
+            rgba(200, 50, 50, 0.3) 100%
+        );
+    }
+    75% {
+        background: radial-gradient(
+            ellipse 55% 45% at 45% 45%,
+            #ff6633 0%,
+            #cc3300 30%,
+            #993366 60%,
+            rgba(100, 80, 150, 0.3) 100%
+        );
+    }
+    100% {
+        background: radial-gradient(
+            ellipse 55% 45% at 45% 45%,
+            #7799bb 0%,
+            #5577aa 30%,
+            #445588 60%,
+            rgba(60, 70, 100, 0.2) 100%
+        );
+        box-shadow:
+            0 0 20px rgba(120, 150, 200, 0.4),
+            0 0 40px rgba(80, 100, 150, 0.2);
+    }
+}
+
+/* Brightness ripple during peak emission */
+.supernova-core.pulsing {
+    animation: brightnessPulse 0.6s ease-in-out 3;
+}
+
+@keyframes brightnessPulse {
+    0%, 100% {
+        filter: brightness(1);
+    }
+    50% {
+        filter: brightness(1.5);
+    }
+}
+
+/* ==========================================
+   BLACK HOLE
+   ========================================== */
+
+/* Black hole container */
+.blackhole-container {
+    position: absolute;
+    pointer-events: none;
+    z-index: 100;
+    transform: translate(-50%, -50%);
+    will-change: transform, opacity;
+    contain: layout paint;
+}
+
+/* Event horizon - pure black sphere */
+.blackhole-horizon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--blackhole-void);
+    box-shadow:
+        0 0 30px 10px var(--blackhole-horizon-glow),
+        inset 0 0 20px rgba(0, 0, 0, 1);
+    z-index: 10;
+}
+
+/* Photon ring - thin bright edge glow */
+.blackhole-photon-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 86px;
+    height: 86px;
+    border-radius: 50%;
+    border: 1px solid var(--blackhole-photon-ring);
+    box-shadow:
+        0 0 8px 2px var(--blackhole-photon-ring),
+        0 0 15px 4px rgba(255, 200, 150, 0.4),
+        inset 0 0 8px rgba(255, 200, 150, 0.2);
+    z-index: 9;
+    opacity: 0;
+    transition: opacity 1s ease;
+}
+
+.blackhole-photon-ring.visible {
+    opacity: 1;
+}
+
+/* Accretion disk - horizontal ellipse with Doppler gradient */
+.blackhole-disk {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 200px;
+    height: 20px;
+    background: linear-gradient(90deg,
+        rgba(255, 100, 50, 0.25) 0%,
+        rgba(255, 180, 100, 0.7) 35%,
+        var(--blackhole-disk-hot) 50%,
+        var(--blackhole-disk-warm) 60%,
+        rgba(255, 100, 50, 0.2) 100%
+    );
+    border-radius: 50%;
+    transform: translate(-50%, -50%) rotateX(75deg);
+    box-shadow:
+        0 0 20px 5px rgba(255, 180, 100, 0.3),
+        0 0 40px 10px rgba(255, 140, 60, 0.15);
+    z-index: 5;
+    opacity: 0;
+    transition: opacity 2s ease;
+}
+
+.blackhole-disk.visible {
+    opacity: 1;
+}
+
+.blackhole-disk.rotating {
+    animation: accretionRotate 8s linear infinite;
+}
+
+@keyframes accretionRotate {
+    0% {
+        transform: translate(-50%, -50%) rotateX(75deg) rotateZ(0deg);
+    }
+    100% {
+        transform: translate(-50%, -50%) rotateX(75deg) rotateZ(360deg);
+    }
+}
+
+/* Gravitational lensing rings - the distinctive Interstellar "halo" */
+.blackhole-lensed-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 180px;
+    height: 100px;
+    border: 3px solid transparent;
+    border-radius: 50%;
+    z-index: 4;
+    opacity: 0;
+    transition: opacity 1.5s ease;
+}
+
+.blackhole-lensed-ring.visible {
+    opacity: 1;
+}
+
+/* Top lensed ring - light bent over the black hole */
+.blackhole-lensed-top {
+    transform: translate(-50%, -75%) rotateX(60deg);
+    border-bottom-color: var(--blackhole-lensing);
+    box-shadow: 0 3px 15px rgba(255, 180, 120, 0.4);
+}
+
+/* Bottom lensed ring - light bent under the black hole */
+.blackhole-lensed-bottom {
+    transform: translate(-50%, 25%) rotateX(-60deg);
+    border-top-color: rgba(255, 180, 120, 0.6);
+    box-shadow: 0 -3px 12px rgba(255, 180, 120, 0.3);
+}
+
+/* Stars affected by gravity */
+.ascii-star.gravitating {
+    transition: transform 0.1s linear, opacity 0.3s ease;
+}
+
+.ascii-star.consumed {
+    opacity: 0 !important;
+    transform: scale(0.1) !important;
+}
+
+/* Text warping near black hole */
+.gravity-warped {
+    transition: letter-spacing 0.5s ease, filter 0.5s ease;
+}
+
+/* Black hole audio visualizer hint (subtle glow pulse) */
+.blackhole-container.audio-active .blackhole-horizon {
+    animation: horizonPulse 4s ease-in-out infinite;
+}
+
+@keyframes horizonPulse {
+    0%, 100% {
+        box-shadow:
+            0 0 30px 10px var(--blackhole-horizon-glow),
+            inset 0 0 20px rgba(0, 0, 0, 1);
+    }
+    50% {
+        box-shadow:
+            0 0 40px 15px var(--blackhole-horizon-glow),
+            0 0 60px 20px rgba(80, 60, 40, 0.15),
+            inset 0 0 20px rgba(0, 0, 0, 1);
+    }
+}
+
+/* Supernova to black hole collapse animation */
+.supernova-core.collapsing {
+    animation: coreCollapse 2s ease-in forwards;
+}
+
+@keyframes coreCollapse {
+    0% {
+        transform: translate(-50%, -50%) scale(20);
+        background: radial-gradient(
+            ellipse at center,
+            var(--supernova-remnant) 0%,
+            rgba(90, 122, 159, 0.5) 50%,
+            transparent 100%
+        );
+        opacity: 1;
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(5);
+        opacity: 0.8;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(0);
+        opacity: 0;
+    }
+}
+
+/* Mobile adjustments for cosmic events */
+@media (max-width: 768px) {
+    .blackhole-horizon {
+        width: 60px;
+        height: 60px;
+    }
+
+    .blackhole-photon-ring {
+        width: 66px;
+        height: 66px;
+    }
+
+    .blackhole-disk {
+        width: 150px;
+        height: 15px;
+    }
+
+    .blackhole-lensed-ring {
+        width: 140px;
+        height: 80px;
+    }
+
+    .supernova-ejecta {
+        height: 40px;
+    }
+
+    @keyframes ejectaExpand {
+        0% { height: 15px; opacity: 1; }
+        100% { height: 80px; opacity: 0; }
+    }
+}
+
+@media (max-width: 480px) {
+    .blackhole-horizon {
+        width: 50px;
+        height: 50px;
+    }
+
+    .blackhole-photon-ring {
+        width: 56px;
+        height: 56px;
+    }
+
+    .blackhole-disk {
+        width: 120px;
+        height: 12px;
+    }
+
+    .blackhole-lensed-ring {
+        width: 110px;
+        height: 60px;
+        border-width: 2px;
+    }
+}
+
+/* ==========================================
+   ARTISTIC SUPERNOVA - Enhanced Visual Effects
+   ========================================== */
+
+/* Pre-ignition: Arrhythmic heartbeat via overlaid animations */
+.supernova-progenitor {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle at 45% 45%,
+        #fff 0%,
+        var(--supernova-core-hot) 30%,
+        var(--supernova-core-warm) 60%,
+        transparent 100%
+    );
+    box-shadow:
+        0 0 15px var(--supernova-core-warm),
+        0 0 30px rgba(255, 200, 100, 0.3);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.supernova-progenitor.unstable {
+    animation:
+        heartbeat-primary 0.7s ease-in-out infinite,
+        heartbeat-secondary 1.1s ease-in-out infinite,
+        color-instability 0.3s step-end infinite;
+}
+
+@keyframes heartbeat-primary {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); }
+    40% { transform: translate(-50%, -50%) scale(0.85); }
+    60% { transform: translate(-50%, -50%) scale(1.15); }
+}
+
+@keyframes heartbeat-secondary {
+    0%, 100% {
+        box-shadow:
+            0 0 15px var(--supernova-core-warm),
+            0 0 30px rgba(255, 200, 100, 0.3);
+    }
+    35% {
+        box-shadow:
+            0 0 25px var(--supernova-core-hot),
+            0 0 50px rgba(255, 220, 150, 0.5);
+    }
+    70% {
+        box-shadow:
+            0 0 8px var(--supernova-core-warm),
+            0 0 15px rgba(255, 180, 80, 0.2);
+    }
+}
+
+@keyframes color-instability {
+    0% { filter: hue-rotate(0deg) brightness(1); }
+    33% { filter: hue-rotate(-15deg) brightness(1.2); }
+    66% { filter: hue-rotate(10deg) brightness(0.9); }
+    100% { filter: hue-rotate(0deg) brightness(1); }
+}
+
+/* Core collapse: Inward-rushing rings */
+.collapse-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 1px solid rgba(200, 220, 255, 0.6);
+    pointer-events: none;
+    animation: collapse-inward 0.6s ease-in forwards;
+}
+
+@keyframes collapse-inward {
+    0% {
+        width: 200px;
+        height: 200px;
+        opacity: 0.8;
+        border-color: rgba(200, 220, 255, 0.6);
+    }
+    100% {
+        width: 8px;
+        height: 8px;
+        opacity: 0;
+        border-color: rgba(255, 255, 255, 0.9);
+    }
+}
+
+/* Diffraction spikes - iconic 4-point or 6-point star */
+.diffraction-spike {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    height: 2px;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.05) 15%,
+        rgba(255, 255, 255, 0.4) 35%,
+        rgba(255, 255, 255, 1) 50%,
+        rgba(255, 255, 255, 0.4) 65%,
+        rgba(255, 255, 255, 0.05) 85%,
+        transparent 100%
+    );
+    transform-origin: center center;
+    filter: blur(0.5px);
+    pointer-events: none;
+    opacity: 0;
+}
+
+.diffraction-spike.visible {
+    animation: diffraction-flash 2s ease-out forwards;
+}
+
+@keyframes diffraction-flash {
+    0% {
+        width: 50px;
+        opacity: 0;
+    }
+    10% {
+        opacity: 1;
+        width: 350px;
+    }
+    30% {
+        opacity: 0.8;
+    }
+    100% {
+        width: 400px;
+        opacity: 0;
+    }
+}
+
+/* Secondary diffraction spikes - dimmer, angled differently */
+.diffraction-spike.secondary {
+    height: 1px;
+    filter: blur(1px);
+}
+
+.diffraction-spike.secondary.visible {
+    animation: diffraction-flash-secondary 2s ease-out forwards;
+}
+
+@keyframes diffraction-flash-secondary {
+    0% { width: 30px; opacity: 0; }
+    10% { opacity: 0.6; width: 200px; }
+    100% { width: 250px; opacity: 0; }
+}
+
+/* Chromatic ring - rainbow dispersion at flash edge */
+.chromatic-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: conic-gradient(from 0deg,
+        rgba(255, 120, 120, 0.25),
+        rgba(255, 200, 120, 0.25),
+        rgba(200, 255, 120, 0.25),
+        rgba(120, 255, 200, 0.25),
+        rgba(120, 200, 255, 0.25),
+        rgba(200, 120, 255, 0.25),
+        rgba(255, 120, 200, 0.25),
+        rgba(255, 120, 120, 0.25)
+    );
+    filter: blur(12px);
+    mix-blend-mode: screen;
+    pointer-events: none;
+    opacity: 0;
+}
+
+.chromatic-ring.visible {
+    animation: chromatic-expand 2.5s ease-out forwards;
+}
+
+@keyframes chromatic-expand {
+    0% {
+        width: 30px;
+        height: 30px;
+        opacity: 0;
+    }
+    10% {
+        opacity: 0.9;
+    }
+    50% {
+        opacity: 0.5;
+    }
+    100% {
+        width: 400px;
+        height: 400px;
+        opacity: 0;
+    }
+}
+
+/* Organic shockwave - wobbly, not perfectly circular */
+.organic-shockwave {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border: 2px solid var(--supernova-shockwave);
+    border-radius: 47% 53% 51% 49% / 52% 48% 52% 48%;
+    box-shadow:
+        0 0 15px var(--supernova-shockwave),
+        0 0 30px rgba(255, 140, 0, 0.3),
+        inset 0 0 10px rgba(255, 180, 100, 0.2);
+    pointer-events: none;
+    opacity: 0;
+}
+
+.organic-shockwave.expanding {
+    animation:
+        organic-expand 4s ease-out forwards,
+        shockwave-wobble 0.5s ease-in-out infinite;
+}
+
+@keyframes organic-expand {
+    0% {
+        width: 20px;
+        height: 20px;
+        opacity: 0;
+        border-width: 3px;
+    }
+    5% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+        border-width: 2px;
+    }
+    100% {
+        width: 500px;
+        height: 500px;
+        opacity: 0;
+        border-width: 1px;
+    }
+}
+
+@keyframes shockwave-wobble {
+    0%, 100% { border-radius: 47% 53% 51% 49% / 52% 48% 52% 48%; }
+    25% { border-radius: 51% 49% 48% 52% / 49% 51% 50% 50%; }
+    50% { border-radius: 48% 52% 53% 47% / 51% 49% 48% 52%; }
+    75% { border-radius: 52% 48% 49% 51% / 48% 52% 51% 49%; }
+}
+
+/* Light echoes - concentric rings appearing AFTER the main event */
+.light-echo {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 1px solid transparent;
+    background: radial-gradient(
+        circle,
+        transparent 92%,
+        rgba(160, 180, 220, 0.15) 95%,
+        rgba(180, 200, 240, 0.35) 97%,
+        rgba(160, 180, 220, 0.15) 99%,
+        transparent 100%
+    );
+    pointer-events: none;
+    opacity: 0;
+}
+
+.light-echo.visible {
+    animation: echo-expand var(--echo-duration, 5s) ease-out forwards;
+}
+
+@keyframes echo-expand {
+    0% {
+        width: 60px;
+        height: 60px;
+        opacity: 0;
+    }
+    8% {
+        opacity: 0.7;
+    }
+    40% {
+        opacity: 0.4;
+    }
+    100% {
+        width: var(--echo-size, 350px);
+        height: var(--echo-size, 350px);
+        opacity: 0;
+    }
+}
+
+/* Multiple echo rings with different sizes */
+.light-echo.echo-1 { --echo-size: 300px; --echo-duration: 4s; }
+.light-echo.echo-2 { --echo-size: 450px; --echo-duration: 5s; }
+.light-echo.echo-3 { --echo-size: 600px; --echo-duration: 6s; }
+
+/* Star brightening effect when shockwave passes */
+.ascii-star.shockwave-brightened {
+    transition: filter 0.15s ease-out, text-shadow 0.15s ease-out;
+}
+
+.ascii-star.shockwave-active {
+    filter: brightness(2.5) !important;
+    text-shadow: 0 0 12px currentColor !important;
+}
+
+/* Filamentary structure - thin bright threads in remnant */
+.supernova-filament {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform-origin: center center;
+    height: 1px;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(255, 200, 150, 0.1) 20%,
+        rgba(255, 200, 150, 0.3) 50%,
+        rgba(255, 200, 150, 0.1) 80%,
+        transparent 100%
+    );
+    pointer-events: none;
+    opacity: 0;
+}
+
+.supernova-filament.visible {
+    animation: filament-appear 3s ease-out forwards;
+}
+
+@keyframes filament-appear {
+    0% {
+        width: 20px;
+        opacity: 0;
+    }
+    20% {
+        opacity: 0.6;
+    }
+    100% {
+        width: var(--filament-length, 150px);
+        opacity: 0;
+    }
+}
+
+/* Asymmetric ejecta - clustered in directions */
+.asymmetric-ejecta {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 4px;
+    background: linear-gradient(
+        to top,
+        transparent 0%,
+        var(--supernova-ejecta) 20%,
+        var(--supernova-core-warm) 50%,
+        var(--supernova-core-hot) 100%
+    );
+    border-radius: 2px 2px 50% 50%;
+    transform-origin: bottom center;
+    filter: blur(0.5px);
+    pointer-events: none;
+    opacity: 0;
+}
+
+.asymmetric-ejecta.launched {
+    animation: ejecta-launch var(--ejecta-duration, 2.5s) ease-out forwards;
+}
+
+@keyframes ejecta-launch {
+    0% {
+        height: 10px;
+        opacity: 0;
+        transform: rotate(var(--ejecta-angle, 0deg)) translateY(0);
+    }
+    15% {
+        opacity: var(--ejecta-brightness, 0.9);
+        height: 30px;
+        transform: rotate(var(--ejecta-angle, 0deg)) translateY(calc(-0.15 * var(--ejecta-travel, 80px)));
+    }
+    70% {
+        opacity: calc(var(--ejecta-brightness, 0.9) * 0.5);
+        transform: rotate(var(--ejecta-angle, 0deg)) translateY(calc(-0.7 * var(--ejecta-travel, 80px)));
+    }
+    100% {
+        height: var(--ejecta-length, 120px);
+        opacity: 0;
+        transform: rotate(var(--ejecta-angle, 0deg)) translateY(calc(-1 * var(--ejecta-travel, 80px)));
+    }
+}
+
+/* Black hole gasp - final flash before darkness */
+.blackhole-gasp {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        rgba(255, 255, 255, 0.9) 0%,
+        rgba(255, 200, 150, 0.6) 30%,
+        rgba(100, 80, 60, 0.3) 60%,
+        transparent 100%
+    );
+    pointer-events: none;
+    opacity: 0;
+}
+
+.blackhole-gasp.active {
+    animation: gasp-flash 0.8s ease-out forwards;
+}
+
+@keyframes gasp-flash {
+    0% {
+        width: 20px;
+        height: 20px;
+        opacity: 0;
+    }
+    20% {
+        opacity: 1;
+        width: 80px;
+        height: 80px;
+    }
+    100% {
+        width: 5px;
+        height: 5px;
+        opacity: 0;
+    }
+}
+
+/* Neutron star remnant - blue pulsing core */
+.neutron-star {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 8px;
+    background: radial-gradient(circle, #aaccff 0%, #6699ff 50%, #3366cc 100%);
+    border-radius: 50%;
+    opacity: 0;
+    z-index: 25;
+    box-shadow:
+        0 0 10px 2px rgba(100, 150, 255, 0.8),
+        0 0 20px 4px rgba(100, 150, 255, 0.5),
+        0 0 40px 8px rgba(100, 150, 255, 0.3);
+    pointer-events: none;
+}
+
+.neutron-star.visible {
+    animation: neutron-appear 3s ease-out forwards;
+}
+
+.neutron-star.pulsing {
+    animation: neutron-pulse 0.05s ease-in-out infinite;
+}
+
+@keyframes neutron-appear {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0);
+    }
+    60% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.5);
+    }
+    100% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+@keyframes neutron-pulse {
+    0%, 100% {
+        filter: brightness(1);
+        box-shadow:
+            0 0 10px 2px rgba(100, 150, 255, 0.8),
+            0 0 20px 4px rgba(100, 150, 255, 0.5),
+            0 0 40px 8px rgba(100, 150, 255, 0.3);
+    }
+    50% {
+        filter: brightness(1.5);
+        box-shadow:
+            0 0 15px 3px rgba(150, 180, 255, 1),
+            0 0 30px 6px rgba(100, 150, 255, 0.7),
+            0 0 60px 12px rgba(100, 150, 255, 0.4);
+    }
+}
+
+/* Pulsar beams - spinning jets from neutron star */
+.pulsar-beam {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 2px;
+    height: 150px;
+    background: linear-gradient(to top,
+        rgba(150, 180, 255, 0.9) 0%,
+        rgba(100, 150, 255, 0.5) 30%,
+        rgba(100, 150, 255, 0.2) 60%,
+        transparent 100%
+    );
+    transform-origin: bottom center;
+    transform: translateX(-50%);
+    opacity: 0;
+    z-index: 24;
+    pointer-events: none;
+    filter: blur(1px);
+}
+
+.pulsar-beam.visible {
+    animation: pulsar-appear 2s ease-out forwards;
+}
+
+.pulsar-beam.spinning {
+    animation: pulsar-spin 2s linear infinite;
+}
+
+.pulsar-beam.opposite {
+    transform: translateX(-50%) rotate(180deg);
+}
+
+.pulsar-beam.opposite.spinning {
+    animation: pulsar-spin-opposite 2s linear infinite;
+}
+
+@keyframes pulsar-appear {
+    0% { opacity: 0; height: 20px; }
+    100% { opacity: 0.7; height: 150px; }
+}
+
+@keyframes pulsar-spin {
+    from { transform: translateX(-50%) rotate(0deg); }
+    to { transform: translateX(-50%) rotate(360deg); }
+}
+
+@keyframes pulsar-spin-opposite {
+    from { transform: translateX(-50%) rotate(180deg); }
+    to { transform: translateX(-50%) rotate(540deg); }
+}
+
+/* Nebula clouds - scientific colors */
+.nebula-cloud {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    border-radius: 50%;
+    filter: blur(20px);
+    mix-blend-mode: screen;
+    opacity: 0;
+    pointer-events: none;
+    will-change: transform, opacity;
+}
+
+.nebula-cloud.visible {
+    animation: nebula-drift var(--nebula-duration, 15s) ease-out forwards;
+}
+
+/* Hydrogen alpha - deep rose/pink */
+.nebula-cloud.hydrogen {
+    background: radial-gradient(
+        ellipse 60% 50% at 50% 50%,
+        rgba(255, 100, 120, 0.4) 0%,
+        rgba(255, 80, 100, 0.2) 40%,
+        transparent 70%
+    );
+}
+
+/* Oxygen III - teal/cyan */
+.nebula-cloud.oxygen {
+    background: radial-gradient(
+        ellipse 55% 60% at 50% 50%,
+        rgba(80, 220, 200, 0.35) 0%,
+        rgba(60, 180, 170, 0.15) 50%,
+        transparent 70%
+    );
+}
+
+/* Sulfur II - deep red/crimson */
+.nebula-cloud.sulfur {
+    background: radial-gradient(
+        ellipse 50% 55% at 50% 50%,
+        rgba(200, 60, 80, 0.35) 0%,
+        rgba(160, 40, 60, 0.15) 45%,
+        transparent 70%
+    );
+}
+
+/* Nitrogen - blue/indigo */
+.nebula-cloud.nitrogen {
+    background: radial-gradient(
+        ellipse 55% 50% at 50% 50%,
+        rgba(100, 140, 255, 0.3) 0%,
+        rgba(80, 100, 200, 0.15) 50%,
+        transparent 70%
+    );
+}
+
+@keyframes nebula-drift {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.3) rotate(0deg);
+    }
+    20% {
+        opacity: var(--nebula-opacity, 0.6);
+    }
+    100% {
+        opacity: var(--nebula-opacity, 0.6);
+        transform: translate(
+            calc(-50% + var(--nebula-drift-x, 0px)),
+            calc(-50% + var(--nebula-drift-y, 0px))
+        ) scale(var(--nebula-scale, 1)) rotate(var(--nebula-rotate, 15deg));
+    }
+}
+
+/* Detonation flash with multi-pulse */
+.detonation-flash {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(
+        ellipse at var(--flash-x, 50%) var(--flash-y, 50%),
+        rgba(255, 255, 255, 0.95) 0%,
+        rgba(255, 250, 240, 0.7) 10%,
+        rgba(255, 240, 220, 0.4) 25%,
+        rgba(255, 220, 180, 0.15) 45%,
+        transparent 70%
+    );
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0;
+}
+
+.detonation-flash.active {
+    animation: detonation-pulse 0.15s steps(4) forwards;
+}
+
+@keyframes detonation-pulse {
+    0% { opacity: 0; }
+    25% { opacity: 1; }
+    50% { opacity: 0.6; }
+    75% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* ==========================================
+   V3 SUPERNOVA - LIGHT RAYS
+   Conic gradient with subtle ray segments
+   ========================================== */
+.light-rays {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 200vmax;
+    height: 200vmax;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 17;
+}
+
+.light-rays::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: conic-gradient(
+        from 0deg,
+        transparent 0deg,
+        rgba(255, 250, 230, 0.12) 1.5deg,
+        transparent 3deg,
+        transparent 12deg,
+        rgba(255, 220, 180, 0.08) 13.5deg,
+        transparent 15deg,
+        transparent 24deg,
+        rgba(255, 240, 200, 0.1) 25.5deg,
+        transparent 27deg,
+        transparent 36deg,
+        rgba(255, 255, 255, 0.06) 37.5deg,
+        transparent 39deg,
+        transparent 48deg,
+        rgba(255, 230, 190, 0.09) 49.5deg,
+        transparent 51deg,
+        transparent 60deg,
+        rgba(255, 245, 220, 0.11) 61.5deg,
+        transparent 63deg,
+        transparent 72deg,
+        rgba(255, 220, 170, 0.07) 73.5deg,
+        transparent 75deg,
+        transparent 84deg,
+        rgba(255, 255, 240, 0.1) 85.5deg,
+        transparent 87deg,
+        transparent 96deg,
+        rgba(255, 235, 200, 0.08) 97.5deg,
+        transparent 99deg,
+        transparent 108deg,
+        rgba(255, 250, 230, 0.12) 109.5deg,
+        transparent 111deg,
+        transparent 120deg,
+        rgba(255, 225, 180, 0.07) 121.5deg,
+        transparent 123deg,
+        transparent 132deg,
+        rgba(255, 240, 210, 0.09) 133.5deg,
+        transparent 135deg,
+        transparent 144deg,
+        rgba(255, 255, 235, 0.11) 145.5deg,
+        transparent 147deg,
+        transparent 156deg,
+        rgba(255, 230, 190, 0.06) 157.5deg,
+        transparent 159deg,
+        transparent 168deg,
+        rgba(255, 245, 215, 0.13) 169.5deg,
+        transparent 171deg,
+        transparent 180deg,
+        rgba(255, 220, 175, 0.08) 181.5deg,
+        transparent 183deg,
+        transparent 192deg,
+        rgba(255, 250, 225, 0.1) 193.5deg,
+        transparent 195deg,
+        transparent 204deg,
+        rgba(255, 235, 195, 0.07) 205.5deg,
+        transparent 207deg,
+        transparent 216deg,
+        rgba(255, 245, 220, 0.12) 217.5deg,
+        transparent 219deg,
+        transparent 228deg,
+        rgba(255, 225, 185, 0.09) 229.5deg,
+        transparent 231deg,
+        transparent 240deg,
+        rgba(255, 255, 240, 0.06) 241.5deg,
+        transparent 243deg,
+        transparent 252deg,
+        rgba(255, 240, 200, 0.11) 253.5deg,
+        transparent 255deg,
+        transparent 264deg,
+        rgba(255, 230, 180, 0.08) 265.5deg,
+        transparent 267deg,
+        transparent 276deg,
+        rgba(255, 250, 230, 0.1) 277.5deg,
+        transparent 279deg,
+        transparent 288deg,
+        rgba(255, 220, 170, 0.07) 289.5deg,
+        transparent 291deg,
+        transparent 300deg,
+        rgba(255, 245, 210, 0.12) 301.5deg,
+        transparent 303deg,
+        transparent 312deg,
+        rgba(255, 235, 190, 0.09) 313.5deg,
+        transparent 315deg,
+        transparent 324deg,
+        rgba(255, 255, 235, 0.06) 325.5deg,
+        transparent 327deg,
+        transparent 336deg,
+        rgba(255, 240, 195, 0.1) 337.5deg,
+        transparent 339deg,
+        transparent 348deg,
+        rgba(255, 250, 220, 0.08) 349.5deg,
+        transparent 351deg,
+        transparent 360deg
+    );
+    animation: rays-rotate 60s linear infinite;
+}
+
+.light-rays.visible {
+    animation: rays-appear 8s ease-out forwards;
+}
+
+@keyframes rays-appear {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.1); }
+    8% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    40% { opacity: 0.5; }
+    100% { opacity: 0; }
+}
+
+@keyframes rays-rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ==========================================
+   V3 SUPERNOVA - LENS FLARES
+   Multiple flares including hex and anamorphic
+   ========================================== */
+.lens-flare {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0;
+    z-index: 30;
+    pointer-events: none;
+}
+
+.lens-flare.visible {
+    animation: flare-appear 6s ease-out forwards;
+}
+
+/* Blue-white flare */
+.lens-flare.flare-blue {
+    width: 80px;
+    height: 80px;
+    background: radial-gradient(circle, rgba(180, 220, 255, 0.5) 0%, transparent 70%);
+}
+
+/* Warm orange flare */
+.lens-flare.flare-warm {
+    width: 40px;
+    height: 40px;
+    background: radial-gradient(circle, rgba(255, 200, 150, 0.6) 0%, transparent 70%);
+}
+
+/* Small cyan flare */
+.lens-flare.flare-cyan {
+    width: 20px;
+    height: 20px;
+    background: radial-gradient(circle, rgba(150, 200, 255, 0.7) 0%, transparent 70%);
+}
+
+/* Large pink flare */
+.lens-flare.flare-pink {
+    width: 100px;
+    height: 100px;
+    background: radial-gradient(circle, rgba(255, 150, 180, 0.3) 0%, transparent 70%);
+}
+
+/* Small green flare */
+.lens-flare.flare-green {
+    width: 25px;
+    height: 25px;
+    background: radial-gradient(circle, rgba(100, 255, 200, 0.5) 0%, transparent 70%);
+}
+
+/* Purple flare */
+.lens-flare.flare-purple {
+    width: 60px;
+    height: 60px;
+    background: radial-gradient(circle, rgba(200, 180, 255, 0.35) 0%, transparent 70%);
+}
+
+/* Hexagonal flare - real lens artifact */
+.lens-flare.flare-hex {
+    width: 50px;
+    height: 50px;
+    background: transparent;
+    border: 1px solid rgba(180, 220, 255, 0.4);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+}
+
+/* Anamorphic streak - horizontal lens artifact */
+.lens-flare.flare-anamorphic {
+    width: 40%;
+    height: 4px;
+    border-radius: 0;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(150, 200, 255, 0.3) 20%,
+        rgba(200, 220, 255, 0.6) 50%,
+        rgba(150, 200, 255, 0.3) 80%,
+        transparent 100%
+    );
+}
+
+.lens-flare.flare-anamorphic.visible {
+    animation: anamorphic-appear 5s ease-out forwards;
+}
+
+@keyframes flare-appear {
+    0% { opacity: 0; }
+    10% { opacity: 1; }
+    30% { opacity: 0.7; }
+    100% { opacity: 0; }
+}
+
+@keyframes anamorphic-appear {
+    0% { opacity: 0; transform: scaleX(0.5); }
+    10% { opacity: 1; transform: scaleX(1.2); }
+    30% { opacity: 0.6; }
+    100% { opacity: 0; transform: scaleX(0.8); }
+}
+
+/* ==========================================
+   V3 SUPERNOVA - SCREEN FLASH
+   Full screen white flash at detonation
+   ========================================== */
+.screen-flash {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    opacity: 0;
+    z-index: 9998;
+    pointer-events: none;
+}
+
+.screen-flash.active {
+    animation: screen-flash-pulse 2s ease-out forwards;
+}
+
+@keyframes screen-flash-pulse {
+    0% { opacity: 0; }
+    5% { opacity: 1; }
+    15% { opacity: 0.7; }
+    30% { opacity: 0.3; }
+    60% { opacity: 0.05; }
+    100% { opacity: 0; }
+}
+
+/* Flash overlay - radial gradient version */
+.flash-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 50% 50%,
+        rgba(255, 255, 255, 0.9) 0%,
+        rgba(255, 240, 200, 0.5) 20%,
+        transparent 60%
+    );
+    opacity: 0;
+    z-index: 22;
+    pointer-events: none;
+}
+
+.flash-overlay.visible {
+    animation: flash-overlay-expand 4s ease-out forwards;
+}
+
+@keyframes flash-overlay-expand {
+    0% { opacity: 0; transform: scale(0.5); }
+    5% { opacity: 1; transform: scale(1); }
+    20% { opacity: 0.6; }
+    50% { opacity: 0.15; }
+    100% { opacity: 0; }
+}
+
+/* ==========================================
+   V3 SUPERNOVA - COLORED SHOCKWAVES
+   4 colored rings with staggered timing + wobble
+   ========================================== */
+.shockwave-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 47% 53% 51% 49% / 52% 48% 52% 48%;
+    border: 2px solid rgba(180, 220, 255, 0.8);
+    opacity: 0;
+    z-index: 18;
+    pointer-events: none;
+}
+
+/* Blue shockwave - first, fastest */
+.shockwave-ring.shockwave-blue {
+    border-color: rgba(180, 220, 255, 0.8);
+    box-shadow: 0 0 10px rgba(180, 220, 255, 0.4);
+}
+
+/* Orange shockwave - second */
+.shockwave-ring.shockwave-orange {
+    border-color: rgba(255, 180, 140, 0.6);
+    box-shadow: 0 0 10px rgba(255, 180, 140, 0.3);
+}
+
+/* Purple shockwave - third */
+.shockwave-ring.shockwave-purple {
+    border-color: rgba(180, 140, 220, 0.5);
+    box-shadow: 0 0 10px rgba(180, 140, 220, 0.25);
+}
+
+/* Teal shockwave - fourth, slowest */
+.shockwave-ring.shockwave-teal {
+    border-color: rgba(140, 220, 200, 0.4);
+    box-shadow: 0 0 10px rgba(140, 220, 200, 0.2);
+}
+
+.shockwave-ring.expanding {
+    animation:
+        shockwave-expand var(--shockwave-duration, 6s) ease-out forwards,
+        shockwave-wobble 0.5s ease-in-out infinite;
+}
+
+@keyframes shockwave-expand {
+    0% {
+        width: 10px;
+        height: 10px;
+        opacity: 1;
+        border-width: 3px;
+    }
+    100% {
+        width: calc(120 * max(1vw, 1vh));
+        height: calc(120 * max(1vw, 1vh));
+        opacity: 0;
+        border-width: 0.5px;
+    }
+}
+
+/* ==========================================
+   V3 SUPERNOVA - PROGENITOR GROWTH
+   Dramatic growth then collapse
+   ========================================== */
+.supernova-progenitor.growing {
+    animation:
+        progenitor-grow 10s ease-in forwards,
+        heartbeat-primary 0.7s ease-in-out infinite,
+        color-instability 0.3s step-end infinite;
+}
+
+@keyframes progenitor-grow {
+    0% { transform: translate(-50%, -50%) scale(1); }
+    60% { transform: translate(-50%, -50%) scale(1.3); }
+    80% { transform: translate(-50%, -50%) scale(2); }
+    92% { transform: translate(-50%, -50%) scale(3.5); filter: brightness(3); }
+    96% { transform: translate(-50%, -50%) scale(0.5); }
+    100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+}
+
+/* Tension flicker - builds before explosion */
+.tension-flicker {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px;
+    height: 20px;
+    background: transparent;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 19;
+}
+
+.tension-flicker.building {
+    animation: tension-build 10s ease-in forwards;
+}
+
+@keyframes tension-build {
+    0%, 50% { box-shadow: none; }
+    70% { box-shadow: 0 0 30px 10px rgba(255, 255, 255, 0.3); }
+    85% { box-shadow: 0 0 60px 20px rgba(255, 255, 255, 0.6); }
+    92% { box-shadow: 0 0 120px 40px rgba(255, 255, 255, 0.9); }
+    100% { box-shadow: none; }
+}
+
+/* ==========================================
+   V3 SUPERNOVA - CORE EXPLOSION
+   Main core flash with scaling
+   ========================================== */
+.supernova-core-v3 {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px;
+    height: 10px;
+    background: #fff;
+    border-radius: 50%;
+    opacity: 0;
+    z-index: 25;
+    pointer-events: none;
+}
+
+.supernova-core-v3.exploding {
+    animation: core-explode 8s ease-out forwards;
+}
+
+@keyframes core-explode {
+    0% {
+        transform: translate(-50%, -50%) scale(0);
+        opacity: 0;
+        background: #fff;
+    }
+    3% {
+        transform: translate(-50%, -50%) scale(20);
+        opacity: 1;
+        background: #fff;
+        box-shadow:
+            0 0 100px 50px rgba(255, 255, 255, 1),
+            0 0 200px 100px rgba(255, 240, 200, 0.8),
+            0 0 400px 200px rgba(255, 180, 100, 0.5);
+    }
+    10% {
+        transform: translate(-50%, -50%) scale(10);
+        opacity: 1;
+        background: #fffef0;
+    }
+    30% {
+        transform: translate(-50%, -50%) scale(4);
+        background: #ffdd88;
+    }
+    60% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(0);
+        opacity: 0;
+    }
+}
+
+/* Reduced motion - skip all cosmic event animations */
+@media (prefers-reduced-motion: reduce) {
+    .supernova-container,
+    .blackhole-container,
+    .supernova-flash,
+    .detonation-flash,
+    .supernova-progenitor,
+    .light-echo,
+    .diffraction-spike,
+    .chromatic-ring,
+    .organic-shockwave,
+    .light-rays,
+    .lens-flare,
+    .screen-flash,
+    .flash-overlay,
+    .shockwave-ring,
+    .tension-flicker,
+    .supernova-core-v3 {
+        display: none !important;
+    }
+}
+
+/* ==========================================
    TOUCH-FRIENDLY SLIDERS
    ========================================== */
 @media (pointer: coarse) {
