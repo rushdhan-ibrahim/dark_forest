@@ -653,43 +653,138 @@ export function initHeroForest(): void {
         }, 9000);
     }
 
-    // Mouse tracking
+    // Mouse tracking (desktop)
     document.addEventListener('mousemove', (e: MouseEvent) => {
         handlePointerMove(e.clientX, e.clientY);
     });
 
-    // Touch tracking with immediate response
-    document.addEventListener('touchmove', (e: TouchEvent) => {
-        if (e.touches.length > 0) {
-            const touch = e.touches[0];
-            handlePointerMove(touch.clientX, touch.clientY, false);
+    // Mobile: Use gyroscope for eye tracking (feels more natural than touch)
+    if (isMobile && 'DeviceOrientationEvent' in window) {
+        let gyroEnabled = false;
+        let lastGyroUpdate = 0;
+        const GYRO_THROTTLE = 50; // 20fps for smooth but efficient updates
+
+        // Request permission on iOS 13+
+        const requestGyroPermission = async () => {
+            if (typeof (DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }).requestPermission === 'function') {
+                try {
+                    const permission = await (DeviceOrientationEvent as unknown as { requestPermission: () => Promise<string> }).requestPermission();
+                    return permission === 'granted';
+                } catch {
+                    return false;
+                }
+            }
+            return true; // Non-iOS devices don't need permission
+        };
+
+        const handleOrientation = (event: DeviceOrientationEvent) => {
+            if (!gyroEnabled || !container) return;
+
+            const now = performance.now();
+            if (now - lastGyroUpdate < GYRO_THROTTLE) return;
+            lastGyroUpdate = now;
+
+            // beta: front-to-back tilt (-180 to 180, 0 = flat)
+            // gamma: left-to-right tilt (-90 to 90, 0 = flat)
+            const beta = event.beta ?? 0;
+            const gamma = event.gamma ?? 0;
+
+            // Map tilt to virtual cursor position within container
+            const rect = container.getBoundingClientRect();
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+
+            // Sensitivity: how much tilt (degrees) to move across the container
+            // gamma range: -45 to 45 maps to full width
+            // beta range: -20 to 60 (accounting for phone held at angle) maps to full height
+            const normalizedGamma = Math.max(-45, Math.min(45, gamma)) / 45;
+            const normalizedBeta = Math.max(-20, Math.min(60, beta - 20)) / 40; // Offset for natural holding angle
+
+            forestMouseX = centerX + (normalizedGamma * centerX * 1.5);
+            forestMouseY = centerY + (normalizedBeta * centerY * 1.2);
+
+            // Update eyes with gyro-derived position
+            isTouchActive = true; // Use faster transitions
+            updateEyesFromPosition();
+        };
+
+        // Tap to enable gyroscope (needed for iOS permission + user engagement)
+        const enableGyro = async () => {
+            if (gyroEnabled) return;
+
+            const granted = await requestGyroPermission();
+            if (granted) {
+                gyroEnabled = true;
+                window.addEventListener('deviceorientation', handleOrientation, { passive: true });
+                container?.classList.add('gyro-active');
+
+                // Visual feedback that gyro is now active
+                forestEyes.forEach(eye => {
+                    eye.el.style.transition = 'transform 0.3s ease-out';
+                });
+            }
+        };
+
+        // First tap on forest enables gyroscope tracking
+        container.addEventListener('touchstart', (e) => {
+            if (!gyroEnabled) {
+                enableGyro();
+            }
+            // Also handle tap-to-attract for immediate feedback
+            if (e.touches.length > 0) {
+                const touch = e.touches[0];
+                const rect = container.getBoundingClientRect();
+                forestMouseX = touch.clientX - rect.left;
+                forestMouseY = touch.clientY - rect.top;
+                isTouchActive = true;
+                handlePointerMove(touch.clientX, touch.clientY, true);
+            }
+        }, { passive: true });
+
+        container.addEventListener('touchend', () => {
+            // Don't reset isTouchActive if gyro is enabled - keep faster transitions
+            if (!gyroEnabled) {
+                isTouchActive = false;
+            }
+        }, { passive: true });
+
+        // Helper to update eyes from current forestMouseX/Y (for gyro)
+        function updateEyesFromPosition() {
+            if (!container) return;
+            const rect = container.getBoundingClientRect();
+            handlePointerMove(rect.left + forestMouseX, rect.top + forestMouseY, false);
         }
-    }, { passive: true });
 
-    document.addEventListener('touchstart', (e: TouchEvent) => {
-        if (e.touches.length > 0) {
-            isTouchActive = true;
-            touchStartTime = performance.now();
-            const touch = e.touches[0];
-            // Immediate response on touch start - bypass throttle
-            handlePointerMove(touch.clientX, touch.clientY, true);
+    } else {
+        // Fallback: Traditional touch tracking for devices without gyroscope
+        document.addEventListener('touchmove', (e: TouchEvent) => {
+            if (e.touches.length > 0) {
+                const touch = e.touches[0];
+                handlePointerMove(touch.clientX, touch.clientY, false);
+            }
+        }, { passive: true });
 
-            // Add visual feedback class to container
-            container?.classList.add('touch-active');
-        }
-    }, { passive: true });
+        document.addEventListener('touchstart', (e: TouchEvent) => {
+            if (e.touches.length > 0) {
+                isTouchActive = true;
+                touchStartTime = performance.now();
+                const touch = e.touches[0];
+                handlePointerMove(touch.clientX, touch.clientY, true);
+                container?.classList.add('touch-active');
+            }
+        }, { passive: true });
 
-    document.addEventListener('touchend', () => {
-        isTouchActive = false;
-        container?.classList.remove('touch-active');
+        document.addEventListener('touchend', () => {
+            isTouchActive = false;
+            container?.classList.remove('touch-active');
 
-        // If it was a quick tap (< 200ms), give eyes a moment to settle
-        if (performance.now() - touchStartTime < 200) {
-            forestEyes.forEach(eye => {
-                eye.el.style.transition = 'transform 0.3s ease-out';
-            });
-        }
-    }, { passive: true });
+            if (performance.now() - touchStartTime < 200) {
+                forestEyes.forEach(eye => {
+                    eye.el.style.transition = 'transform 0.3s ease-out';
+                });
+            }
+        }, { passive: true });
+    }
 
     // Personality-aware blinking - slower interval on mobile for performance
     const blinkInterval = isMobile ? 2000 : 1000;

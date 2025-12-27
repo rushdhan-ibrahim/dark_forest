@@ -433,17 +433,24 @@
 
 /* Touch interaction states for mobile */
 @media (pointer: coarse) {
-    #hero-forest.touch-active .forest-eye {
-        /* Faster transitions during active touch */
+    #hero-forest.touch-active .forest-eye,
+    #hero-forest.gyro-active .forest-eye {
+        /* Faster transitions during active interaction */
         transition: transform 0.08s ease-out, text-shadow 0.15s ease;
     }
 
-    #hero-forest.touch-active .forest-eye.tracking {
-        /* Enhanced glow during touch interaction */
+    #hero-forest.touch-active .forest-eye.tracking,
+    #hero-forest.gyro-active .forest-eye.tracking {
+        /* Enhanced glow during interaction */
         text-shadow:
             0 0 20px currentColor,
             0 0 40px currentColor,
             0 0 70px currentColor;
+    }
+
+    /* Gyroscope mode: smoother, more fluid transitions */
+    #hero-forest.gyro-active .forest-eye {
+        transition: transform 0.15s ease-out, text-shadow 0.2s ease;
     }
 
     /* Larger tap target for touch devices */
@@ -456,6 +463,28 @@
         height: 48px;
         transform: translate(-50%, -50%);
         pointer-events: none;
+    }
+
+    /* Hint to tap the forest on mobile */
+    #hero-forest::before {
+        content: 'tap to activate';
+        position: absolute;
+        bottom: 15%;
+        left: 50%;
+        transform: translateX(-50%);
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 10px;
+        color: rgba(180, 200, 220, 0.3);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        opacity: 1;
+        transition: opacity 0.5s ease;
+        pointer-events: none;
+    }
+
+    #hero-forest.gyro-active::before,
+    #hero-forest.touch-active::before {
+        opacity: 0;
     }
 }
 
@@ -2874,37 +2903,48 @@
     }
 
     .credence-map {
-        height: 200px;
-        margin-bottom: 20px;
+        /* Enough height for chart + labels + cluster info */
+        height: auto;
+        min-height: 280px;
+        margin-bottom: var(--space-xl);
+        padding-top: 24px;
+        padding-bottom: 24px;
     }
 
     .map-axes {
-        /* Position labels outside the dots area */
-        position: relative;
-        height: 0;
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
     }
 
     .map-dots {
-        position: absolute;
-        top: 20px;
-        left: 0;
-        right: 0;
-        bottom: 20px;
+        /* Chart area with room for axis labels */
+        position: relative;
+        height: 180px;
+        margin: 0;
+        inset: auto;
     }
 
-    /* Simplify axis labels on small screens */
+    /* Axis labels positioned clearly outside the chart */
     .axis-label {
-        font-size: 7px;
-        letter-spacing: 0.03em;
+        font-size: 9px;
+        letter-spacing: 0.05em;
+        background: rgba(10, 12, 20, 0.9);
+        padding: 2px 8px;
+        border-radius: 3px;
     }
 
     .axis-label.axis-top {
         top: 0;
+        left: 50%;
+        transform: translateX(-50%);
     }
 
     .axis-label.axis-bottom {
         bottom: 0;
         top: auto;
+        left: 50%;
+        transform: translateX(-50%);
     }
 
     .axis-label.axis-left,
@@ -2914,13 +2954,55 @@
     }
 
     .cluster-info {
+        /* Position below the chart, not overlapping */
         position: relative;
         bottom: auto;
         transform: none;
         left: auto;
-        margin-top: var(--space-md);
+        margin-top: var(--space-lg);
         max-width: 100%;
-        padding: 0 var(--space-sm);
+        padding: var(--space-md);
+        background: rgba(10, 10, 20, 0.6);
+        border: 1px solid rgba(100, 200, 180, 0.2);
+        border-radius: 8px;
+        text-align: center;
+    }
+
+    .cluster-info .cluster-name {
+        font-size: var(--text-md);
+        margin-bottom: var(--space-xs);
+    }
+
+    .cluster-info .cluster-description {
+        font-size: 12px;
+        line-height: 1.5;
+    }
+
+    .cluster-info .cluster-stats {
+        font-size: 11px;
+        margin-top: var(--space-xs);
+    }
+}
+
+@media (max-width: 360px) {
+    .credence-map {
+        min-height: 250px;
+        padding-top: 20px;
+        padding-bottom: 20px;
+    }
+
+    .map-dots {
+        height: 150px;
+    }
+
+    .axis-label.axis-top,
+    .axis-label.axis-bottom {
+        font-size: 8px;
+        padding: 2px 6px;
+    }
+
+    .cluster-info {
+        padding: var(--space-sm);
     }
 
     .cluster-info .cluster-name {
@@ -2929,26 +3011,6 @@
 
     .cluster-info .cluster-description {
         font-size: 11px;
-        line-height: 1.4;
-    }
-
-    .cluster-info .cluster-stats {
-        font-size: 10px;
-    }
-}
-
-@media (max-width: 360px) {
-    .credence-map {
-        height: 180px;
-    }
-
-    .map-dots {
-        inset: 20px;
-    }
-
-    .axis-label.axis-top,
-    .axis-label.axis-bottom {
-        font-size: 6px;
     }
 }
 
