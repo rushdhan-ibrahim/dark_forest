@@ -1,6 +1,13 @@
 // Cosmic Events - rare astronomical phenomena that create moments of wonder
 // Enhanced supernova with 5 phases, and Interstellar-style black hole formation
 
+import {
+    createWebGLSupernova,
+    WebGLSupernovaRenderer
+} from './webgl-supernova';
+
+import { getMasterGain } from '../audio/context';
+
 // ============================================================================
 // TYPES AND INTERFACES
 // ============================================================================
@@ -84,8 +91,8 @@ const cosmicEvents: CosmicEvent[] = [
     { type: 'gamma-ray-burst', weight: 15 }
 ];
 
-// Black hole formation probability (20% scientifically realistic for massive stars)
-const BLACK_HOLE_PROBABILITY = 0.2;
+// Black hole formation probability (35% for dramatic effect)
+const BLACK_HOLE_PROBABILITY = 0.35;
 
 // Gravity effect parameters (in viewport percentage)
 const GRAVITY_RADIUS = 25;        // % of viewport where effect begins
@@ -118,9 +125,16 @@ let pulsarInterval: ReturnType<typeof setInterval> | null = null;
 let eventContainer: HTMLElement | null = null;
 let activeEvent: ActiveCosmicEvent | null = null;
 
+// WebGL supernova state
+let webglRenderer: WebGLSupernovaRenderer | null = null;
+
 // Audio context (lazy initialized)
 let cosmicAudioContext: AudioContext | null = null;
 let cosmicGainNode: GainNode | null = null;
+
+// Continuous audio nodes for WebGL phases
+let progenitorOscillator: OscillatorNode | null = null;
+let progenitorGain: GainNode | null = null;
 
 const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
 
@@ -386,6 +400,643 @@ function playGammaRayBurst(): void {
 
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.5);
+}
+
+// ============================================================================
+// WEBGL SUPERNOVA AUDIO
+// ============================================================================
+
+function startWebGLProgenitorAudio(): void {
+    const ctx = getAudioContext();
+    if (!ctx || !cosmicGainNode) return;
+
+    // Stop any existing progenitor audio
+    stopWebGLProgenitorAudio();
+
+    // Create continuous building rumble for the 10-second progenitor phase
+    progenitorOscillator = ctx.createOscillator();
+    progenitorGain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+
+    progenitorOscillator.type = 'sine';
+    progenitorOscillator.frequency.setValueAtTime(25, ctx.currentTime);
+    // Slowly rise in pitch as instability builds
+    progenitorOscillator.frequency.linearRampToValueAtTime(60, ctx.currentTime + 10);
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(80, ctx.currentTime);
+    filter.frequency.linearRampToValueAtTime(200, ctx.currentTime + 10);
+
+    progenitorGain.gain.setValueAtTime(0, ctx.currentTime);
+    // Gradual build over 10 seconds
+    progenitorGain.gain.linearRampToValueAtTime(0.05, ctx.currentTime + 2);
+    progenitorGain.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 8);
+    progenitorGain.gain.linearRampToValueAtTime(0.25, ctx.currentTime + 9.5);
+
+    progenitorOscillator.connect(filter);
+    filter.connect(progenitorGain);
+    progenitorGain.connect(cosmicGainNode);
+
+    progenitorOscillator.start(ctx.currentTime);
+}
+
+function stopWebGLProgenitorAudio(): void {
+    if (progenitorOscillator) {
+        try {
+            progenitorOscillator.stop();
+        } catch {
+            // Already stopped
+        }
+        progenitorOscillator = null;
+    }
+    progenitorGain = null;
+}
+
+function playWebGLExplosionAudio(): void {
+    const ctx = getAudioContext();
+    if (!ctx || !cosmicGainNode) return;
+
+    // Fade out progenitor
+    if (progenitorGain) {
+        progenitorGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
+        setTimeout(() => stopWebGLProgenitorAudio(), 400);
+    }
+
+    // Sharp detonation impact
+    const impactOsc = ctx.createOscillator();
+    const impactGain = ctx.createGain();
+    const impactFilter = ctx.createBiquadFilter();
+
+    impactOsc.type = 'sawtooth';
+    impactOsc.frequency.setValueAtTime(300, ctx.currentTime);
+    impactOsc.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.5);
+
+    impactFilter.type = 'lowpass';
+    impactFilter.frequency.setValueAtTime(2000, ctx.currentTime);
+    impactFilter.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.5);
+
+    impactGain.gain.setValueAtTime(0.6, ctx.currentTime);
+    impactGain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1);
+
+    impactOsc.connect(impactFilter);
+    impactFilter.connect(impactGain);
+    impactGain.connect(cosmicGainNode);
+
+    impactOsc.start(ctx.currentTime);
+    impactOsc.stop(ctx.currentTime + 1.5);
+
+    // Rising expansion rumble
+    const expansionOsc = ctx.createOscillator();
+    const expansionGain = ctx.createGain();
+    const expansionFilter = ctx.createBiquadFilter();
+
+    expansionOsc.type = 'sawtooth';
+    expansionOsc.frequency.setValueAtTime(35, ctx.currentTime);
+    expansionOsc.frequency.linearRampToValueAtTime(80, ctx.currentTime + 6);
+
+    expansionFilter.type = 'lowpass';
+    expansionFilter.frequency.setValueAtTime(150, ctx.currentTime);
+    expansionFilter.frequency.linearRampToValueAtTime(400, ctx.currentTime + 4);
+    expansionFilter.frequency.linearRampToValueAtTime(200, ctx.currentTime + 6);
+
+    expansionGain.gain.setValueAtTime(0.2, ctx.currentTime + 0.1);
+    expansionGain.gain.linearRampToValueAtTime(0.35, ctx.currentTime + 2);
+    expansionGain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 5);
+    expansionGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 6);
+
+    expansionOsc.connect(expansionFilter);
+    expansionFilter.connect(expansionGain);
+    expansionGain.connect(cosmicGainNode);
+
+    expansionOsc.start(ctx.currentTime);
+    expansionOsc.stop(ctx.currentTime + 7);
+}
+
+function playWebGLRemnantAudio(): void {
+    const ctx = getAudioContext();
+    if (!ctx || !cosmicGainNode) return;
+
+    // Ethereal cooling sound
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(80, ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(50, ctx.currentTime + 4);
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(300, ctx.currentTime);
+    filter.frequency.linearRampToValueAtTime(100, ctx.currentTime + 4);
+
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.1, ctx.currentTime + 2);
+    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 4);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(cosmicGainNode);
+
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 5);
+}
+
+function playWebGLNeutronStarAudio(): void {
+    const ctx = getAudioContext();
+    if (!ctx || !cosmicGainNode) return;
+
+    // Ethereal, warm pulsing sound - like a cosmic heartbeat
+    // Uses layered sine waves with gentle modulation for a pleasant choir-like effect
+
+    const baseFreq = 165; // E3 - warm, not shrill
+    const now = ctx.currentTime;
+
+    // Master gain for all neutron star sounds
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(0, now);
+    masterGain.gain.linearRampToValueAtTime(0.12, now + 2);
+    masterGain.gain.linearRampToValueAtTime(0.08, now + 6);
+    masterGain.gain.linearRampToValueAtTime(0, now + 10);
+    masterGain.connect(cosmicGainNode);
+
+    // Warm lowpass filter
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(800, now);
+    filter.frequency.linearRampToValueAtTime(400, now + 8);
+    filter.Q.value = 1;
+    filter.connect(masterGain);
+
+    // Layer 1: Base tone (fundamental)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(baseFreq, now);
+    gain1.gain.value = 0.4;
+    osc1.connect(gain1);
+    gain1.connect(filter);
+
+    // Layer 2: Perfect fifth above (musical harmony)
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(baseFreq * 1.5, now); // Perfect 5th
+    gain2.gain.value = 0.25;
+    osc2.connect(gain2);
+    gain2.connect(filter);
+
+    // Layer 3: Octave above (adds brightness without shrillness)
+    const osc3 = ctx.createOscillator();
+    const gain3 = ctx.createGain();
+    osc3.type = 'sine';
+    osc3.frequency.setValueAtTime(baseFreq * 2, now); // Octave
+    gain3.gain.value = 0.15;
+    osc3.connect(gain3);
+    gain3.connect(filter);
+
+    // Gentle tremolo LFO (slower, subtler than before)
+    const lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+    lfo.type = 'sine';
+    lfo.frequency.setValueAtTime(2.5, now); // Slower pulse - like breathing
+    lfoGain.gain.value = 0.15; // Subtle modulation
+    lfo.connect(lfoGain);
+    lfoGain.connect(masterGain.gain);
+
+    // Gentle pitch drift for organic feel
+    osc1.frequency.linearRampToValueAtTime(baseFreq * 0.98, now + 5);
+    osc1.frequency.linearRampToValueAtTime(baseFreq * 1.01, now + 10);
+
+    // Start all oscillators
+    osc1.start(now);
+    osc2.start(now);
+    osc3.start(now);
+    lfo.start(now);
+
+    // Stop after 11 seconds
+    osc1.stop(now + 11);
+    osc2.stop(now + 11);
+    osc3.stop(now + 11);
+    lfo.stop(now + 11);
+}
+
+function playNebulaFilamentAudio(): void {
+    const ctx = getAudioContext();
+    if (!ctx || !cosmicGainNode) return;
+
+    // Ethereal, wispy sounds representing the delicate filament structures
+    // Multiple soft, detuned oscillators creating a shimmering texture
+    const now = ctx.currentTime;
+
+    // Master gain - very subtle
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(0, now);
+    masterGain.gain.linearRampToValueAtTime(0.06, now + 3);
+    masterGain.gain.setValueAtTime(0.06, now + 5);
+    masterGain.gain.linearRampToValueAtTime(0, now + 12);
+    masterGain.connect(cosmicGainNode);
+
+    // Soft highpass to keep it airy
+    const highpass = ctx.createBiquadFilter();
+    highpass.type = 'highpass';
+    highpass.frequency.setValueAtTime(200, now);
+    highpass.Q.value = 0.5;
+    highpass.connect(masterGain);
+
+    // Gentle lowpass to prevent harshness
+    const lowpass = ctx.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.setValueAtTime(2000, now);
+    lowpass.frequency.linearRampToValueAtTime(800, now + 10);
+    lowpass.Q.value = 1;
+    lowpass.connect(highpass);
+
+    // Create multiple detuned oscillators for shimmer effect
+    const frequencies = [330, 440, 550, 660]; // Harmonic series based on E4
+    const detunes = [-8, 5, -3, 7]; // Slight detuning for organic shimmer
+
+    frequencies.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+        osc.detune.setValueAtTime(detunes[i], now);
+
+        // Each oscillator fades in and out at slightly different times
+        const fadeOffset = i * 0.8;
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.15 - i * 0.03, now + 2 + fadeOffset);
+        gain.gain.linearRampToValueAtTime(0.1 - i * 0.02, now + 8);
+        gain.gain.linearRampToValueAtTime(0, now + 11 + fadeOffset);
+
+        // Slow random-ish pitch drift for organic movement
+        const driftAmount = 10 + i * 5;
+        osc.frequency.linearRampToValueAtTime(freq + driftAmount, now + 4);
+        osc.frequency.linearRampToValueAtTime(freq - driftAmount * 0.5, now + 8);
+        osc.frequency.linearRampToValueAtTime(freq, now + 12);
+
+        osc.connect(gain);
+        gain.connect(lowpass);
+
+        osc.start(now + fadeOffset * 0.3);
+        osc.stop(now + 13);
+    });
+
+    // Add a subtle noise layer for texture (like cosmic dust)
+    const noiseLength = 2;
+    const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * noiseLength, ctx.sampleRate);
+    const noiseData = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < noiseData.length; i++) {
+        noiseData[i] = (Math.random() * 2 - 1) * 0.3;
+    }
+
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuffer;
+    noise.loop = true;
+
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.setValueAtTime(600, now);
+    noiseFilter.frequency.linearRampToValueAtTime(400, now + 10);
+    noiseFilter.Q.value = 2;
+
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0, now);
+    noiseGain.gain.linearRampToValueAtTime(0.03, now + 3);
+    noiseGain.gain.linearRampToValueAtTime(0.02, now + 8);
+    noiseGain.gain.linearRampToValueAtTime(0, now + 12);
+
+    noise.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(masterGain);
+
+    noise.start(now);
+    noise.stop(now + 13);
+}
+
+function playWebGLBlackHoleAudio(): void {
+    const ctx = getAudioContext();
+    if (!ctx || !cosmicGainNode) return;
+
+    // ═══════════════════════════════════════════════════════════════════
+    // THE SUBLIME VOID - A layered soundscape of cosmic terror and beauty
+    // ═══════════════════════════════════════════════════════════════════
+
+    const now = ctx.currentTime;
+
+    // ═══ THE CONSUMPTION ═══
+    // Black hole sucks all ambient sound into silence
+    const ambientMaster = getMasterGain();
+    if (ambientMaster) {
+        // Store current value and duck to near-silence
+        const currentVol = ambientMaster.gain.value;
+        ambientMaster.gain.cancelScheduledValues(now);
+        ambientMaster.gain.setValueAtTime(currentVol, now);
+        // Slowly get sucked into the void
+        ambientMaster.gain.exponentialRampToValueAtTime(0.02, now + 5);
+        // Hold in near-silence during peak black hole
+        ambientMaster.gain.setValueAtTime(0.02, now + 8);
+        // Gradually return as black hole fades
+        ambientMaster.gain.linearRampToValueAtTime(currentVol, now + 14);
+    }
+
+    // Master gain for the black hole's own sounds
+    const bhMasterGain = ctx.createGain();
+    bhMasterGain.gain.setValueAtTime(0, now);
+    bhMasterGain.gain.linearRampToValueAtTime(0.4, now + 3); // Higher for bass presence
+    bhMasterGain.gain.setValueAtTime(0.4, now + 7);
+    bhMasterGain.gain.linearRampToValueAtTime(0, now + 11);
+    bhMasterGain.connect(cosmicGainNode);
+
+    // ═══ LAYER 0: THE UNFATHOMABLE DEPTH ═══
+    // Sub-bass with audible harmonics so it comes through on all speakers
+    const depthOsc = ctx.createOscillator();
+    const depthOsc2 = ctx.createOscillator(); // 1 octave up - audible bass
+    const depthOsc3 = ctx.createOscillator(); // 2 octaves up - presence
+    const depthGain = ctx.createGain();
+
+    depthOsc.type = 'sine';
+    depthOsc.frequency.setValueAtTime(25, now);
+    depthOsc.frequency.exponentialRampToValueAtTime(16, now + 10);
+
+    depthOsc2.type = 'sine';
+    depthOsc2.frequency.setValueAtTime(50, now); // Octave up - audible on most speakers
+    depthOsc2.frequency.exponentialRampToValueAtTime(32, now + 10);
+
+    depthOsc3.type = 'triangle'; // Softer timbre for upper harmonic
+    depthOsc3.frequency.setValueAtTime(100, now); // 2 octaves up
+    depthOsc3.frequency.exponentialRampToValueAtTime(64, now + 10);
+
+    depthGain.gain.setValueAtTime(0, now);
+    depthGain.gain.linearRampToValueAtTime(0.7, now + 2);
+    depthGain.gain.setValueAtTime(0.7, now + 8);
+    depthGain.gain.linearRampToValueAtTime(0, now + 11);
+
+    depthOsc.connect(depthGain);
+    depthOsc2.connect(depthGain);
+    depthOsc3.connect(depthGain);
+    depthGain.connect(bhMasterGain);
+
+    // ═══ LAYER 0.5: DISTANT COSMIC RUMBLE ═══
+    // Like thunder from across the universe - the sound of spacetime tearing
+    const rumbleNoise = ctx.createBufferSource();
+    const rumbleBuffer = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate);
+    const rumbleData = rumbleBuffer.getChannelData(0);
+    // Create irregular rumbling texture
+    for (let i = 0; i < rumbleData.length; i++) {
+        const t = i / ctx.sampleRate;
+        // Layered slow oscillations for organic rumble
+        const rumble = Math.sin(t * 3) * 0.3 +
+                       Math.sin(t * 7.3) * 0.2 +
+                       Math.sin(t * 11.7) * 0.15 +
+                       (Math.random() * 2 - 1) * 0.35;
+        rumbleData[i] = rumble;
+    }
+    rumbleNoise.buffer = rumbleBuffer;
+    rumbleNoise.loop = true;
+
+    const rumbleFilter = ctx.createBiquadFilter();
+    rumbleFilter.type = 'lowpass';
+    rumbleFilter.frequency.setValueAtTime(120, now); // Higher cutoff so it's audible
+    rumbleFilter.frequency.linearRampToValueAtTime(60, now + 10);
+    rumbleFilter.Q.value = 1.5;
+
+    const rumbleGain = ctx.createGain();
+    rumbleGain.gain.setValueAtTime(0, now);
+    rumbleGain.gain.linearRampToValueAtTime(0.8, now + 3); // Powerful rumble
+    rumbleGain.gain.setValueAtTime(0.8, now + 7);
+    rumbleGain.gain.linearRampToValueAtTime(0, now + 11);
+
+    rumbleNoise.connect(rumbleFilter);
+    rumbleFilter.connect(rumbleGain);
+    rumbleGain.connect(bhMasterGain);
+
+    // ═══ LAYER 1: THE ABYSS DRONE ═══
+    // Deep gravitational pull - descends into sub-bass infinity
+    const abyssDrone = ctx.createOscillator();
+    const abyssGain = ctx.createGain();
+    const abyssFilter = ctx.createBiquadFilter();
+
+    abyssDrone.type = 'sine';
+    abyssDrone.frequency.setValueAtTime(55, now); // A1
+    abyssDrone.frequency.exponentialRampToValueAtTime(27.5, now + 10); // Descends an octave
+
+    abyssFilter.type = 'lowpass';
+    abyssFilter.frequency.setValueAtTime(200, now);
+    abyssFilter.frequency.exponentialRampToValueAtTime(60, now + 10);
+    abyssFilter.Q.value = 2;
+
+    abyssGain.gain.value = 0.5;
+    abyssDrone.connect(abyssFilter);
+    abyssFilter.connect(abyssGain);
+    abyssGain.connect(bhMasterGain);
+
+    // ═══ LAYER 2: GRAVITATIONAL WAVES ═══
+    // Two slightly detuned oscillators create beating patterns
+    const gwave1 = ctx.createOscillator();
+    const gwave2 = ctx.createOscillator();
+    const gwaveGain = ctx.createGain();
+
+    gwave1.type = 'sine';
+    gwave2.type = 'sine';
+    gwave1.frequency.setValueAtTime(41, now);
+    gwave2.frequency.setValueAtTime(41.5, now); // 0.5Hz beating
+    // Waves slow down as time dilates near the horizon
+    gwave1.frequency.exponentialRampToValueAtTime(20, now + 10);
+    gwave2.frequency.exponentialRampToValueAtTime(20.15, now + 10);
+
+    gwaveGain.gain.value = 0.3;
+    gwave1.connect(gwaveGain);
+    gwave2.connect(gwaveGain);
+    gwaveGain.connect(bhMasterGain);
+
+    // ═══ LAYER 3: TIME DILATION CHOIR ═══
+    // Ethereal tones that slowly stretch and descend - being pulled in
+    const choirFreqs = [330, 440, 554, 659]; // A minor chord
+    const choirEndFreqs = [82, 110, 138, 165]; // Stretched down 2 octaves
+
+    choirFreqs.forEach((startFreq, i) => {
+        const voice = ctx.createOscillator();
+        const voiceGain = ctx.createGain();
+        const voiceFilter = ctx.createBiquadFilter();
+
+        voice.type = 'sine';
+        voice.frequency.setValueAtTime(startFreq, now);
+        // Each voice descends at slightly different rate - spaghettification
+        const stretchFactor = 1 + i * 0.15;
+        voice.frequency.exponentialRampToValueAtTime(
+            choirEndFreqs[i],
+            now + 8 * stretchFactor
+        );
+
+        voiceFilter.type = 'lowpass';
+        voiceFilter.frequency.setValueAtTime(2000, now);
+        voiceFilter.frequency.exponentialRampToValueAtTime(200, now + 9);
+        voiceFilter.Q.value = 1;
+
+        voiceGain.gain.setValueAtTime(0, now);
+        voiceGain.gain.linearRampToValueAtTime(0.03 - i * 0.005, now + 2); // Quieter choir
+        voiceGain.gain.linearRampToValueAtTime(0.015, now + 7);
+        voiceGain.gain.exponentialRampToValueAtTime(0.001, now + 10);
+
+        voice.connect(voiceFilter);
+        voiceFilter.connect(voiceGain);
+        voiceGain.connect(bhMasterGain);
+
+        voice.start(now + i * 0.3);
+        voice.stop(now + 12);
+    });
+
+    // ═══ LAYER 4: EVENT HORIZON RING ═══
+    // A subtle resonant hum at the point of no return
+    const horizonOsc = ctx.createOscillator();
+    const horizonGain = ctx.createGain();
+    const horizonFilter = ctx.createBiquadFilter();
+
+    horizonOsc.type = 'sine';
+    horizonOsc.frequency.setValueAtTime(73.4, now); // D2 - ominous
+    horizonOsc.frequency.linearRampToValueAtTime(55, now + 10);
+
+    horizonFilter.type = 'bandpass';
+    horizonFilter.frequency.setValueAtTime(80, now);
+    horizonFilter.Q.value = 15; // Sharp resonance
+
+    horizonGain.gain.setValueAtTime(0, now);
+    horizonGain.gain.linearRampToValueAtTime(0.2, now + 4);
+    horizonGain.gain.setValueAtTime(0.2, now + 7);
+    horizonGain.gain.linearRampToValueAtTime(0, now + 10);
+
+    horizonOsc.connect(horizonFilter);
+    horizonFilter.connect(horizonGain);
+    horizonGain.connect(bhMasterGain);
+
+    // ═══ LAYER 5: HAWKING RADIATION WHISPERS ═══
+    // Faint sparkles at the edge - particles escaping the void
+    const hawkingNoise = ctx.createBufferSource();
+    const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
+    const noiseData = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < noiseData.length; i++) {
+        // Sparse, occasional sparkles
+        noiseData[i] = Math.random() < 0.02 ? (Math.random() * 2 - 1) : 0;
+    }
+    hawkingNoise.buffer = noiseBuffer;
+    hawkingNoise.loop = true;
+
+    const hawkingFilter = ctx.createBiquadFilter();
+    hawkingFilter.type = 'highpass';
+    hawkingFilter.frequency.setValueAtTime(2000, now); // Lower, less harsh
+    hawkingFilter.frequency.linearRampToValueAtTime(1000, now + 8);
+
+    const hawkingGain = ctx.createGain();
+    hawkingGain.gain.setValueAtTime(0, now);
+    hawkingGain.gain.linearRampToValueAtTime(0.04, now + 3); // Much quieter
+    hawkingGain.gain.linearRampToValueAtTime(0.02, now + 7);
+    hawkingGain.gain.linearRampToValueAtTime(0, now + 10);
+
+    hawkingNoise.connect(hawkingFilter);
+    hawkingFilter.connect(hawkingGain);
+    hawkingGain.connect(bhMasterGain);
+
+    // ═══ LAYER 6: THE CONSUMING WIND ═══
+    // Filtered noise being sucked into the void
+    const windNoise = ctx.createBufferSource();
+    const windBuffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const windData = windBuffer.getChannelData(0);
+    for (let i = 0; i < windData.length; i++) {
+        windData[i] = (Math.random() * 2 - 1) * 0.5;
+    }
+    windNoise.buffer = windBuffer;
+    windNoise.loop = true;
+
+    const windFilter = ctx.createBiquadFilter();
+    windFilter.type = 'bandpass';
+    windFilter.frequency.setValueAtTime(400, now); // Start lower, less shrill
+    windFilter.frequency.exponentialRampToValueAtTime(60, now + 10); // Sucked down
+    windFilter.Q.value = 2;
+
+    const windGain = ctx.createGain();
+    windGain.gain.setValueAtTime(0, now);
+    windGain.gain.linearRampToValueAtTime(0.06, now + 2); // Quieter
+    windGain.gain.linearRampToValueAtTime(0.04, now + 6);
+    windGain.gain.exponentialRampToValueAtTime(0.001, now + 10);
+
+    windNoise.connect(windFilter);
+    windFilter.connect(windGain);
+    windGain.connect(bhMasterGain);
+
+    // ═══ LAYER 7: THE FINAL BREATH ═══
+    // A last gasp of light before the singularity - a distant bell
+    const bell1 = ctx.createOscillator();
+    const bell2 = ctx.createOscillator();
+    const bellGain = ctx.createGain();
+
+    bell1.type = 'sine';
+    bell2.type = 'sine';
+    bell1.frequency.setValueAtTime(262, now + 6); // C4 - lower octave
+    bell2.frequency.setValueAtTime(262 * 2.4, now + 6); // Inharmonic partial
+
+    bell1.frequency.exponentialRampToValueAtTime(65, now + 10);
+    bell2.frequency.exponentialRampToValueAtTime(156, now + 10);
+
+    bellGain.gain.setValueAtTime(0, now);
+    bellGain.gain.setValueAtTime(0, now + 6);
+    bellGain.gain.linearRampToValueAtTime(0.04, now + 6.5); // Much quieter
+    bellGain.gain.exponentialRampToValueAtTime(0.001, now + 10);
+
+    bell1.connect(bellGain);
+    bell2.connect(bellGain);
+    bellGain.connect(bhMasterGain);
+
+    // Start all oscillators
+    depthOsc.start(now);
+    depthOsc2.start(now);
+    depthOsc3.start(now);
+    rumbleNoise.start(now);
+    abyssDrone.start(now);
+    gwave1.start(now);
+    gwave2.start(now);
+    horizonOsc.start(now);
+    hawkingNoise.start(now);
+    windNoise.start(now);
+    bell1.start(now + 6);
+    bell2.start(now + 6);
+
+    // Stop all oscillators
+    depthOsc.stop(now + 12);
+    depthOsc2.stop(now + 12);
+    depthOsc3.stop(now + 12);
+    rumbleNoise.stop(now + 12);
+    abyssDrone.stop(now + 12);
+    gwave1.stop(now + 12);
+    gwave2.stop(now + 12);
+    horizonOsc.stop(now + 12);
+    hawkingNoise.stop(now + 12);
+    windNoise.stop(now + 12);
+    bell1.stop(now + 12);
+    bell2.stop(now + 12);
+}
+
+function handleWebGLPhaseChange(phase: string, _time: number): void {
+    switch (phase) {
+        case 'explosion':
+            playWebGLExplosionAudio();
+            break;
+        case 'remnant':
+            playWebGLRemnantAudio();
+            // Nebula filaments emerge during remnant phase
+            playNebulaFilamentAudio();
+            break;
+        case 'neutron':
+            playWebGLNeutronStarAudio();
+            break;
+        case 'blackhole':
+            playWebGLBlackHoleAudio();
+            break;
+        case 'fadeout':
+            // Audio naturally fades out
+            break;
+    }
 }
 
 // ============================================================================
@@ -2265,8 +2916,67 @@ function selectRandomEvent(): CosmicEvent['type'] {
     return 'pulsar';
 }
 
-// Toggle between artistic and enhanced supernova (set to true for new artistic version)
-const USE_ARTISTIC_SUPERNOVA = true;
+// Toggle between WebGL, artistic, and enhanced supernova
+// Options: 'webgl' | 'artistic' | 'enhanced'
+const SUPERNOVA_MODE: 'webgl' | 'artistic' | 'enhanced' = 'webgl';
+
+// Click-to-trigger testing mode
+// When true: click anywhere to trigger supernova, alternates between neutron star and black hole
+const SUPERNOVA_CLICK_TRIGGER = false;
+let clickTriggerNextFate = 0;  // 0 = neutron star, 1 = black hole (alternates)
+let clickTriggerRunning = false;
+
+// ============================================================================
+// WEBGL SUPERNOVA
+// ============================================================================
+
+// Optional forceFate parameter: 0 = neutron star, 1 = black hole, undefined = random
+function createWebGLSupernovaEvent(forceFate?: number, onCompleteCallback?: () => void): void {
+    // Clean up any existing WebGL renderer
+    if (webglRenderer) {
+        webglRenderer.destroy();
+        webglRenderer = null;
+    }
+
+    // Clean up any existing DOM-based events
+    if (artisticEvent) {
+        cleanupArtisticEvent();
+    }
+    if (activeEvent) {
+        cleanupEvent();
+    }
+
+    // Determine fate: use forced value or 35% chance of black hole
+    const fate = forceFate !== undefined
+        ? forceFate
+        : (Math.random() < BLACK_HOLE_PROBABILITY ? 1 : 0);
+
+    console.log(`[Supernova] Starting ${fate === 0 ? 'Neutron Star' : 'Black Hole'} event`);
+
+    // Create WebGL renderer
+    webglRenderer = createWebGLSupernova({
+        fate,
+        onPhaseChange: handleWebGLPhaseChange,
+        onComplete: () => {
+            console.log(`[Supernova] Event complete`);
+            if (webglRenderer) {
+                webglRenderer.destroy();
+                webglRenderer = null;
+            }
+            stopWebGLProgenitorAudio();
+            // Call the optional completion callback
+            onCompleteCallback?.();
+        }
+    });
+
+    if (webglRenderer) {
+        // Start the renderer
+        webglRenderer.start();
+
+        // Start progenitor audio
+        startWebGLProgenitorAudio();
+    }
+}
 
 function triggerRandomEvent(): void {
     const eventType = selectRandomEvent();
@@ -2276,10 +2986,16 @@ function triggerRandomEvent(): void {
             createPulsar();
             break;
         case 'supernova':
-            if (USE_ARTISTIC_SUPERNOVA) {
-                createArtisticSupernova();
-            } else {
-                createEnhancedSupernova();
+            switch (SUPERNOVA_MODE) {
+                case 'webgl':
+                    createWebGLSupernovaEvent();
+                    break;
+                case 'artistic':
+                    createArtisticSupernova();
+                    break;
+                case 'enhanced':
+                    createEnhancedSupernova();
+                    break;
             }
             break;
         case 'gamma-ray-burst':
@@ -2292,6 +3008,40 @@ export function initCosmicEvents(): void {
     // Respect reduced motion preference
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         return;
+    }
+
+    // Click-to-trigger mode: click anywhere to trigger supernova
+    if (SUPERNOVA_CLICK_TRIGGER) {
+        console.log('[Supernova Test] Click-to-trigger mode active');
+        console.log('[Supernova Test] Click anywhere to trigger supernova (alternates: neutron star ↔ black hole)');
+
+        document.addEventListener('click', (e) => {
+            // Ignore clicks on interactive elements
+            const target = e.target as HTMLElement;
+            if (target.closest('button, a, input, .collapsible, nav, .audio-toggle')) {
+                return;
+            }
+
+            // Don't trigger if one is already running
+            if (clickTriggerRunning) {
+                console.log('[Supernova Test] Supernova already in progress, ignoring click');
+                return;
+            }
+
+            clickTriggerRunning = true;
+            const fateType = clickTriggerNextFate === 0 ? 'Neutron Star' : 'Black Hole';
+            console.log(`[Supernova Test] Click detected! Triggering ${fateType}`);
+
+            createWebGLSupernovaEvent(clickTriggerNextFate, () => {
+                clickTriggerRunning = false;
+                // Alternate for next click
+                clickTriggerNextFate = clickTriggerNextFate === 0 ? 1 : 0;
+                const nextType = clickTriggerNextFate === 0 ? 'Neutron Star' : 'Black Hole';
+                console.log(`[Supernova Test] Complete! Next click will trigger: ${nextType}`);
+            });
+        });
+
+        return; // Don't run normal cosmic events in test mode
     }
 
     const TESTING_MODE = false;
@@ -2319,4 +3069,11 @@ export function initCosmicEvents(): void {
 }
 
 // Export for testing/manual triggering
-export { createPulsar, createSupernova, createEnhancedSupernova, createArtisticSupernova, createGammaRayBurst };
+export {
+    createPulsar,
+    createSupernova,
+    createEnhancedSupernova,
+    createArtisticSupernova,
+    createWebGLSupernovaEvent,
+    createGammaRayBurst
+};

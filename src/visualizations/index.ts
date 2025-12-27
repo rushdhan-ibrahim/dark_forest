@@ -4,7 +4,18 @@
 export { initStarfield, initNebulae, createShootingStar, starChars, starConfigs, starColors } from './starfield';
 
 // Cosmic Events
-export { initCosmicEvents, createPulsar, createSupernova, createGammaRayBurst } from './cosmic-events';
+export {
+    initCosmicEvents,
+    createPulsar,
+    createSupernova,
+    createEnhancedSupernova,
+    createArtisticSupernova,
+    createWebGLSupernovaEvent,
+    createGammaRayBurst
+} from './cosmic-events';
+
+// WebGL Supernova renderer
+export { createWebGLSupernova, WEBGL_PHASES } from './webgl-supernova';
 
 // Constellations
 export { initConstellations, showConstellations, hideConstellations, toggleConstellations } from './constellations';
