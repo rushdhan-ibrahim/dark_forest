@@ -19,6 +19,9 @@ body {
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Safe area padding for notched phones */
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
 }
 
 /* Skip link for screen readers */
@@ -76,6 +79,26 @@ button:focus-visible {
 
     html {
         scroll-behavior: auto;
+    }
+
+    /* Disable intensive visual effects */
+    .ascii-star,
+    .forest-eye,
+    .glass-node,
+    .nebula,
+    .shooting-star {
+        transition: none !important;
+        animation: none !important;
+    }
+
+    /* Hide cosmic events entirely - too jarring */
+    #cosmic-events {
+        display: none !important;
+    }
+
+    /* Simplify starfield */
+    .starfield-layer {
+        opacity: 0.5 !important;
     }
 }
 

@@ -359,13 +359,28 @@ export function initSuspicionChain(): void {
     container = document.getElementById('suspicion-chain-container');
     if (!container) return;
 
-    // Create the step nodes
+    // Responsive positioning based on container size
+    const containerWidth = container.offsetWidth;
+    const containerHeight = container.offsetHeight;
+    const isMobile = containerWidth < 480;
+
+    const margin = isMobile ? 10 : 20;
+    const nodeWidth = isMobile ? 90 : 120;
+    const leftX = margin;
+    const rightX = containerWidth - nodeWidth - margin;
+    const centerX = (containerWidth - nodeWidth) / 2;
+
+    // Distribute steps vertically within container
+    const stepCount = 5;
+    const verticalSpacing = (containerHeight - margin * 2 - 60) / (stepCount - 1);
+
+    // Create the step nodes with responsive positions
     const positions = [
-        { x: 20, y: 20 },    // communication
-        { x: 180, y: 80 },   // explosion
-        { x: 20, y: 140 },   // asymmetric
-        { x: 180, y: 200 },  // spiral
-        { x: 100, y: 280 }   // conclusion
+        { x: leftX, y: margin },                          // communication (top-left)
+        { x: rightX, y: margin + verticalSpacing },       // explosion (right)
+        { x: leftX, y: margin + verticalSpacing * 2 },    // asymmetric (left)
+        { x: rightX, y: margin + verticalSpacing * 3 },   // spiral (right)
+        { x: centerX, y: margin + verticalSpacing * 4 }   // conclusion (center-bottom)
     ];
 
     chainSteps.forEach((step, i) => {

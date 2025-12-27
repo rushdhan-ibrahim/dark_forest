@@ -45,4 +45,50 @@
 
     /* Touch targets */
     --touch-target-min: 48px;
+
+    /* Safe area insets for notched phones */
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+
+    /* Visualization scaling - desktop defaults */
+    --viz-node-size: 60px;
+    --viz-spacing-unit: 1;
+    --viz-container-radius: 180px;
+    --viz-eye-count: 8;
+    --viz-star-count: 440;
+}
+
+/* Tablet breakpoint */
+@media (max-width: 768px) {
+    :root {
+        --viz-node-size: 50px;
+        --viz-spacing-unit: 0.85;
+        --viz-container-radius: 150px;
+        --viz-eye-count: 6;
+        --viz-star-count: 300;
+    }
+}
+
+/* Mobile breakpoint */
+@media (max-width: 480px) {
+    :root {
+        --viz-node-size: 40px;
+        --viz-spacing-unit: 0.7;
+        --viz-container-radius: 120px;
+        --viz-eye-count: 4;
+        --viz-star-count: 220;
+    }
+}
+
+/* Small mobile / iPhone SE */
+@media (max-width: 360px) {
+    :root {
+        --viz-node-size: 36px;
+        --viz-spacing-unit: 0.6;
+        --viz-container-radius: 100px;
+        --viz-eye-count: 3;
+        --viz-star-count: 150;
+    }
 }

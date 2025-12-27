@@ -1,5 +1,6 @@
 export { initSmoothScroll } from './scroll';
 export { initCollapsibles, initCredenceAnimation } from './collapsibles';
+export { initMobileNav, toggleNav, openNav, closeNav, isMobileNavOpen } from './navigation';
 export {
     saveData,
     loadData,

@@ -35,7 +35,7 @@ import { initReturnGreeting, forceShowGreeting } from './components/return-greet
 import { initSessionTracking, resetReadingData } from './utils/session';
 
 // Import utilities
-import { initSmoothScroll, initCollapsibles, initCredenceAnimation } from './utils';
+import { initSmoothScroll, initCollapsibles, initCredenceAnimation, initMobileNav } from './utils';
 
 // Register service worker for offline support
 if ('serviceWorker' in navigator) {
@@ -68,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initMirror();
 
     // Utilities
+    initMobileNav();  // Mobile hamburger menu
     initCollapsibles();
     initCredenceAnimation();
     initSmoothScroll();

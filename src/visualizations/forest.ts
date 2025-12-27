@@ -160,9 +160,14 @@ export function addForestEye(container: HTMLElement, _index: number): number {
     const personality = selectPersonality();
     const profile = personalityProfiles[personality];
 
-    // Spread eyes more across the container, including higher up
-    const x = 80 + Math.random() * (container.offsetWidth - 160);
-    const y = 40 + Math.random() * 180;
+    // Responsive positioning - use percentage-based margins
+    const containerWidth = container.offsetWidth;
+    const containerHeight = container.offsetHeight || 180;
+    const margin = Math.min(40, containerWidth * 0.1); // 10% margin, max 40px
+
+    // Spread eyes across the container
+    const x = margin + Math.random() * (containerWidth - margin * 2);
+    const y = Math.min(40, containerHeight * 0.15) + Math.random() * (containerHeight * 0.7);
     eye.style.left = x + 'px';
     eye.style.top = y + 'px';
 
@@ -209,11 +214,21 @@ export function addForestEye(container: HTMLElement, _index: number): number {
  * They face each other until the reader's cursor passes between them
  */
 function addPairedEyes(container: HTMLElement): void {
-    // Position the pair with some horizontal distance
+    // Responsive positioning for paired eyes
     const containerWidth = container.offsetWidth;
-    const pairWidth = 120 + Math.random() * 100; // 120-220px apart
-    const centerX = 100 + Math.random() * (containerWidth - 200 - pairWidth);
-    const y = 60 + Math.random() * 140;
+    const containerHeight = container.offsetHeight || 180;
+    const isMobile = containerWidth < 480;
+
+    // Scale pair width based on container
+    const minPairWidth = isMobile ? 80 : 120;
+    const maxPairWidth = Math.min(isMobile ? 140 : 220, containerWidth * 0.5);
+    const pairWidth = minPairWidth + Math.random() * (maxPairWidth - minPairWidth);
+
+    // Calculate safe positioning area
+    const margin = Math.min(40, containerWidth * 0.1);
+    const availableWidth = containerWidth - margin * 2 - pairWidth;
+    const centerX = margin + Math.random() * Math.max(0, availableWidth);
+    const y = containerHeight * 0.2 + Math.random() * (containerHeight * 0.5);
 
     // Both eyes share similar personality (they're connected)
     const sharedPersonality = Math.random() > 0.7 ? 'ancient' : 'indifferent';
@@ -237,7 +252,8 @@ function addPairedEyes(container: HTMLElement): void {
     eye2.className = 'forest-eye eye-paired';
     eye2.textContent = '◉';
     eye2.style.left = (centerX + pairWidth) + 'px';
-    eye2.style.top = (y + (Math.random() - 0.5) * 40) + 'px'; // Slight vertical offset
+    const verticalOffset = (Math.random() - 0.5) * Math.min(40, containerHeight * 0.2);
+    eye2.style.top = (y + verticalOffset) + 'px'; // Slight vertical offset
     eye2.style.color = color;
     eye2.style.fontSize = `${20 * profile.size}px`;
     eye2.classList.add(`eye-${sharedPersonality}`);
@@ -266,7 +282,7 @@ function addPairedEyes(container: HTMLElement): void {
     const forestEye2: ForestEye = {
         el: eye2,
         x: centerX + pairWidth,
-        y: y + (Math.random() - 0.5) * 40,
+        y: y + verticalOffset,
         personality: sharedPersonality,
         profile,
         lookAwayAngle: 0,

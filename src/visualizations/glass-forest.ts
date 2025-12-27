@@ -700,13 +700,40 @@ export function initGlassForest(): void {
 
     const colors = ['#d46b6b', '#e0b285', '#6a9e9e', '#5a6a7f', '#d48db8', '#8aa4c6', '#9e8a6a', '#6a9e7a'];
 
-    for (let i = 0; i < 8; i++) {
+    // Responsive layout calculations
+    const containerWidth = container.offsetWidth;
+    const containerHeight = container.offsetHeight;
+    const isMobile = containerWidth < 480;
+    const isSmallMobile = containerWidth < 360;
+
+    // Reduce node count on very small screens
+    const nodeCount = isSmallMobile ? 6 : 8;
+    const nodeSize = isMobile ? 40 : 60;
+    const padding = isMobile ? 25 : 50;
+
+    // Use grid-based positioning to prevent overlap
+    const cols = Math.ceil(Math.sqrt(nodeCount * (containerWidth / Math.max(containerHeight, 200))));
+    const rows = Math.ceil(nodeCount / cols);
+    const cellWidth = (containerWidth - padding * 2) / cols;
+    const cellHeight = (containerHeight - padding * 2 - 50) / rows;
+
+    for (let i = 0; i < nodeCount; i++) {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+
+        // Position within grid cell with jitter for organic feel
+        const jitterX = (Math.random() - 0.5) * cellWidth * 0.4;
+        const jitterY = (Math.random() - 0.5) * cellHeight * 0.4;
+        const x = padding + col * cellWidth + cellWidth / 2 + jitterX;
+        const y = padding + row * cellHeight + cellHeight / 2 + jitterY;
+
         const node = document.createElement('div');
         node.className = 'glass-node';
         node.textContent = '◉';
         node.style.color = colors[i % colors.length];
-        node.style.left = (50 + Math.random() * (container.offsetWidth - 100)) + 'px';
-        node.style.top = (50 + Math.random() * (container.offsetHeight - 150)) + 'px';
+        node.style.left = x + 'px';
+        node.style.top = y + 'px';
+        node.style.fontSize = nodeSize + 'px';
         node.dataset.id = String(i);
         node.dataset.name = `CIV-${i + 1}`;
 

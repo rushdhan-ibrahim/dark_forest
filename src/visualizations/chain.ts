@@ -27,17 +27,39 @@ export function initChain(): void {
     if (!container) return;
 
     const width = container.offsetWidth;
-    const nodeWidth = 60;
-    const totalWidth = nodeWidth * chainData.length;
-    const spacing = (width - totalWidth) / (chainData.length + 1);
+    const isMobile = width < 480;
+    const isSmallMobile = width < 360;
+
+    // Responsive node sizing
+    const nodeWidth = isSmallMobile ? 45 : isMobile ? 52 : 60;
+    const arrowText = isMobile ? '→' : '──▶';
+    const arrowWidth = isMobile ? 15 : 25;
+    const minSpacing = 5;
+
+    const totalContentWidth = nodeWidth * chainData.length + arrowWidth * (chainData.length - 1);
+    let spacing = Math.max(minSpacing, (width - totalContentWidth) / (chainData.length + 1));
+
+    // If still too cramped, enable horizontal scroll
+    if (spacing < minSpacing) {
+        container.style.overflowX = 'auto';
+        container.style.justifyContent = 'flex-start';
+        container.style.paddingLeft = '10px';
+        spacing = minSpacing;
+    }
 
     chainData.forEach((data, i) => {
         const node = document.createElement('div');
         node.className = 'chain-node';
         node.id = `chain-node-${i}`;
-        node.innerHTML = `╭───────╮<br>│${data.name.substring(0, 7).padStart(4).padEnd(7)}│<br>╰───────╯`;
-        node.style.left = (spacing + i * (nodeWidth + spacing)) + 'px';
+
+        // Shorter labels on mobile
+        const displayName = isSmallMobile ? data.name.substring(0, 5) : data.name.substring(0, 7);
+        const boxWidth = isSmallMobile ? 5 : 7;
+        node.innerHTML = `╭${'─'.repeat(boxWidth)}╮<br>│${displayName.padStart(Math.ceil(boxWidth/2)).padEnd(boxWidth)}│<br>╰${'─'.repeat(boxWidth)}╯`;
+
+        node.style.left = (spacing + i * (nodeWidth + arrowWidth + spacing)) + 'px';
         node.style.color = data.color;
+        node.style.fontSize = isMobile ? '10px' : '12px';
         container.appendChild(node);
         chainNodes.push({ el: node, alive: true, data });
 
@@ -45,8 +67,8 @@ export function initChain(): void {
             const arrow = document.createElement('div');
             arrow.className = 'chain-arrow';
             arrow.id = `chain-arrow-${i}`;
-            arrow.textContent = '──▶';
-            arrow.style.left = (spacing + i * (nodeWidth + spacing) + nodeWidth + 5) + 'px';
+            arrow.textContent = arrowText;
+            arrow.style.left = (spacing + i * (nodeWidth + arrowWidth + spacing) + nodeWidth + 2) + 'px';
             container.appendChild(arrow);
         }
     });

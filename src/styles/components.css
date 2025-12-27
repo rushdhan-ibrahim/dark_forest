@@ -77,8 +77,8 @@
 
 @media (max-width: 768px) {
     .audio-toggle {
-        bottom: 1rem;
-        right: 1rem;
+        bottom: calc(1rem + var(--safe-bottom));
+        right: calc(1rem + var(--safe-right));
         width: var(--touch-target-min);
         height: var(--touch-target-min);
     }
@@ -156,6 +156,133 @@ nav {
 
 .nav-links a:hover {
     color: var(--starlight);
+}
+
+/* Hamburger button - hidden on desktop */
+.nav-hamburger {
+    display: none;
+    width: var(--touch-target-min);
+    height: var(--touch-target-min);
+    padding: 12px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    cursor: pointer;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    transition: border-color 0.3s ease;
+}
+
+.nav-hamburger:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.nav-hamburger span {
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: var(--text-secondary);
+    transition: all 0.3s ease;
+}
+
+.nav-hamburger[aria-expanded="true"] span:nth-child(1) {
+    transform: rotate(45deg) translate(5px, 5px);
+}
+
+.nav-hamburger[aria-expanded="true"] span:nth-child(2) {
+    opacity: 0;
+}
+
+.nav-hamburger[aria-expanded="true"] span:nth-child(3) {
+    transform: rotate(-45deg) translate(5px, -5px);
+}
+
+/* Navigation drawer overlay */
+.nav-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 998;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.nav-overlay.open {
+    opacity: 1;
+}
+
+/* Navigation drawer */
+.nav-drawer {
+    display: contents; /* On desktop, behaves as if wrapper doesn't exist */
+}
+
+/* Mobile navigation styles */
+@media (max-width: 768px) {
+    nav {
+        padding: var(--space-md);
+        padding-top: calc(var(--space-md) + var(--safe-top));
+        flex-direction: row;
+        justify-content: space-between;
+        gap: 0;
+    }
+
+    .nav-hamburger {
+        display: flex;
+    }
+
+    .nav-overlay {
+        display: block;
+        pointer-events: none;
+    }
+
+    .nav-overlay.open {
+        pointer-events: auto;
+    }
+
+    .nav-drawer {
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: min(280px, 80vw);
+        background: var(--deep-space);
+        border-left: 1px solid rgba(255, 255, 255, 0.1);
+        z-index: 999;
+        transform: translateX(100%);
+        transition: transform 0.3s ease-out;
+        padding: var(--space-xl);
+        padding-top: calc(var(--space-xl) + var(--safe-top));
+        padding-right: calc(var(--space-xl) + var(--safe-right));
+        overflow-y: auto;
+    }
+
+    .nav-drawer.open {
+        transform: translateX(0);
+    }
+
+    .nav-drawer .nav-links {
+        flex-direction: column;
+        gap: 0;
+        width: 100%;
+    }
+
+    .nav-drawer .nav-links a {
+        padding: var(--space-md) 0;
+        font-size: var(--text-base);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        display: flex;
+        align-items: center;
+        min-height: var(--touch-target-min);
+    }
+
+    .nav-drawer .nav-links a:last-child {
+        border-bottom: none;
+    }
 }
 
 /* ==========================================
@@ -312,6 +439,11 @@ nav {
     transition: transform 0.3s ease;
     flex-shrink: 0;
     margin-left: var(--space-md);
+    /* Expand touch target with padding and negative margin */
+    padding: 14px;
+    margin: -14px;
+    margin-left: calc(var(--space-md) - 14px);
+    box-sizing: content-box;
 }
 
 .collapsible.open .collapsible-icon {
@@ -684,21 +816,7 @@ nav {
    RESPONSIVE
    ========================================== */
 @media (max-width: 768px) {
-    nav {
-        padding: var(--space-md);
-        flex-direction: column;
-        gap: var(--space-md);
-    }
-
-    .nav-links {
-        gap: var(--space-md);
-        flex-wrap: wrap;
-        justify-content: center;
-    }
-
-    .nav-links a {
-        font-size: var(--text-xs);
-    }
+    /* Navigation styles are now in the hamburger menu section above */
 
     .distinction-grid,
     .character-grid,
@@ -731,21 +849,7 @@ nav {
 
 /* Small phones */
 @media (max-width: 480px) {
-    nav {
-        padding: var(--space-sm);
-    }
-
-    .nav-title {
-        font-size: var(--text-sm);
-    }
-
-    .nav-links {
-        gap: var(--space-sm);
-    }
-
-    .nav-links a {
-        font-size: 0.6875rem;
-    }
+    /* Navigation handled by hamburger menu on mobile */
 
     .thought-experiment::before {
         font-size: 0.625rem;

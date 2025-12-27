@@ -3163,3 +3163,53 @@
         right: 0;
     }
 }
+
+/* ==========================================
+   TOUCH-FRIENDLY SLIDERS
+   ========================================== */
+@media (pointer: coarse) {
+    /* Year slider in light cone */
+    .year-slider::-webkit-slider-thumb {
+        width: 28px;
+        height: 28px;
+    }
+
+    .year-slider::-moz-range-thumb {
+        width: 28px;
+        height: 28px;
+    }
+
+    /* Payoff matrix sliders */
+    .payoff-slider input[type="range"]::-webkit-slider-thumb {
+        width: 28px;
+        height: 28px;
+    }
+
+    .payoff-slider input[type="range"]::-moz-range-thumb {
+        width: 28px;
+        height: 28px;
+    }
+
+    /* Credence sliders */
+    .credence-slider::-webkit-slider-thumb {
+        width: 32px;
+        height: 32px;
+    }
+
+    .credence-slider::-moz-range-thumb {
+        width: 32px;
+        height: 32px;
+    }
+
+    /* Add touch-action to prevent 300ms delay */
+    input[type="range"] {
+        touch-action: manipulation;
+    }
+
+    /* Increase track height for easier targeting */
+    .year-slider,
+    .payoff-slider input[type="range"],
+    .credence-slider {
+        height: 8px;
+    }
+}

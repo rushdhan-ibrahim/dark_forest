@@ -31,6 +31,11 @@ export function resetJoining(): void {
     const centerX = container.offsetWidth / 2;
     const centerY = container.offsetHeight / 2;
 
+    // Responsive radius based on container size
+    const containerMin = Math.min(container.offsetWidth, container.offsetHeight);
+    const baseRadius = containerMin * 0.35; // 35% of smaller dimension
+    const radiusVariation = containerMin * 0.08;
+
     for (let i = 0; i < individualCount; i++) {
         const ind = document.createElement('div');
         ind.className = 'individual-marker';
@@ -38,7 +43,7 @@ export function resetJoining(): void {
         ind.dataset.index = String(i);
 
         const angle = (i / individualCount) * Math.PI * 2 - Math.PI / 2;
-        const radius = 80 + Math.random() * 25;
+        const radius = baseRadius + Math.random() * radiusVariation;
         const x = centerX + Math.cos(angle) * radius;
         const y = centerY + Math.sin(angle) * radius;
 
@@ -56,6 +61,7 @@ export function startJoining(): void {
 
     const centerX = container.offsetWidth / 2;
     const centerY = container.offsetHeight / 2;
+    const resistingX = Math.max(20, container.offsetWidth * 0.1); // 10% from left, min 20px
 
     // Audio: Start individual tones
     playJoiningStart();
@@ -64,7 +70,7 @@ export function startJoining(): void {
         setTimeout(() => {
             if (i === 0) {
                 ind.el.classList.add('resisting');
-                ind.el.style.left = '30px';
+                ind.el.style.left = resistingX + 'px';
                 ind.el.style.top = centerY + 'px';
             } else {
                 ind.el.classList.add('converging');
