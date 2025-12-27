@@ -47,6 +47,22 @@ if ('serviceWorker' in navigator) {
     });
 }
 
+// Debounced orientation change handler for mobile
+let orientationTimeout: ReturnType<typeof setTimeout> | null = null;
+function handleOrientationChange(): void {
+    if (orientationTimeout) {
+        clearTimeout(orientationTimeout);
+    }
+    // Debounce to avoid multiple rapid calls during rotation
+    orientationTimeout = setTimeout(() => {
+        // Reinitialize visualizations that depend on container dimensions
+        resetJoining();
+        resetSuspicionChain();
+        resetChain();
+        resetGlassForest();
+    }, 300);
+}
+
 // Initialize everything when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     // Visualizations
@@ -84,6 +100,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Phase 8: The Return
     initRealSky();
     initSessionTracking();  // Track reading progress
+
+    // Handle orientation changes on mobile
+    window.addEventListener('orientationchange', handleOrientationChange);
+    // Also listen for resize as a fallback (some devices don't fire orientationchange)
+    let lastWidth = window.innerWidth;
+    window.addEventListener('resize', () => {
+        // Only trigger if width changed significantly (orientation change)
+        if (Math.abs(window.innerWidth - lastWidth) > 100) {
+            lastWidth = window.innerWidth;
+            handleOrientationChange();
+        }
+    });
 });
 
 // Import interactive functions

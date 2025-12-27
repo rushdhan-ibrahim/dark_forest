@@ -331,6 +331,11 @@ function triggerRandomEvent(): void {
 }
 
 export function initCosmicEvents(): void {
+    // Respect reduced motion preference - skip cosmic events entirely
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        return;
+    }
+
     // Reduce frequency on mobile
     const isMobile = window.matchMedia('(max-width: 768px)').matches;
     const baseInterval = isMobile ? 60000 : 40000;  // 60s or 40s base

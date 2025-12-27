@@ -66,7 +66,7 @@ function createTooltip(): HTMLElement {
     return tooltipElement;
 }
 
-function showTooltip(star: Star, x: number, y: number): void {
+function showTooltip(star: Star, x: number, y: number, isTouch = false): void {
     const tooltip = createTooltip();
 
     tooltip.innerHTML = `
@@ -82,19 +82,61 @@ function showTooltip(star: Star, x: number, y: number): void {
     `;
 
     // Position tooltip avoiding edges
-    let left = x + 15;
-    let top = y + 15;
+    // On touch devices, position above finger so it's visible
+    const tooltipWidth = 280;
+    const tooltipHeight = 150;
+    const offset = isTouch ? -tooltipHeight - 30 : 15; // Above finger on touch, below cursor on mouse
 
-    if (left + 280 > window.innerWidth) {
-        left = x - 290;
+    let left = x + 15;
+    let top = isTouch ? y + offset : y + 15;
+
+    // Keep within viewport horizontally
+    if (left + tooltipWidth > window.innerWidth) {
+        left = x - tooltipWidth - 10;
     }
-    if (top + 150 > window.innerHeight) {
-        top = y - 120;
+    if (left < 10) {
+        left = 10;
+    }
+
+    // Keep within viewport vertically
+    if (top < 10) {
+        top = y + 30; // Below finger if no room above
+    }
+    if (top + tooltipHeight > window.innerHeight) {
+        top = y - tooltipHeight - 10;
     }
 
     tooltip.style.left = `${left}px`;
     tooltip.style.top = `${top}px`;
     tooltip.style.opacity = '1';
+}
+
+function updateTooltipPosition(x: number, y: number, isTouch = false): void {
+    if (!tooltipElement || tooltipElement.style.opacity !== '1') return;
+
+    const tooltipWidth = 280;
+    const tooltipHeight = 150;
+    const offset = isTouch ? -tooltipHeight - 30 : 15;
+
+    let left = x + 15;
+    let top = isTouch ? y + offset : y + 15;
+
+    // Keep within viewport
+    if (left + tooltipWidth > window.innerWidth) {
+        left = x - tooltipWidth - 10;
+    }
+    if (left < 10) {
+        left = 10;
+    }
+    if (top < 10) {
+        top = y + 30;
+    }
+    if (top + tooltipHeight > window.innerHeight) {
+        top = y - tooltipHeight - 10;
+    }
+
+    tooltipElement.style.left = `${left}px`;
+    tooltipElement.style.top = `${top}px`;
 }
 
 function hideTooltip(): void {
@@ -170,16 +212,13 @@ function createConstellationElements(): HTMLElement {
 
             // Hover/touch interactions
             point.addEventListener('mouseenter', (e) => {
-                showTooltip(star, e.clientX, e.clientY);
+                showTooltip(star, e.clientX, e.clientY, false);
                 point.setAttribute('fill', '#fff');
                 point.setAttribute('r', `${4 - star.magnitude * 0.4}`);
             });
 
             point.addEventListener('mousemove', (e) => {
-                if (tooltipElement && tooltipElement.style.opacity === '1') {
-                    tooltipElement.style.left = `${e.clientX + 15}px`;
-                    tooltipElement.style.top = `${e.clientY + 15}px`;
-                }
+                updateTooltipPosition(e.clientX, e.clientY, false);
             });
 
             point.addEventListener('mouseleave', () => {
@@ -188,14 +227,25 @@ function createConstellationElements(): HTMLElement {
                 point.setAttribute('r', `${3 - star.magnitude * 0.4}`);
             });
 
-            // Touch support
+            // Touch support - position tooltip above finger
             point.addEventListener('touchstart', (e) => {
                 e.preventDefault();
                 const touch = e.touches[0];
-                showTooltip(star, touch.clientX, touch.clientY);
+                showTooltip(star, touch.clientX, touch.clientY, true);
+                point.setAttribute('fill', '#fff');
+                point.setAttribute('r', `${4 - star.magnitude * 0.4}`);
+            });
+
+            point.addEventListener('touchmove', (e) => {
+                if (e.touches.length > 0) {
+                    const touch = e.touches[0];
+                    updateTooltipPosition(touch.clientX, touch.clientY, true);
+                }
             });
 
             point.addEventListener('touchend', () => {
+                point.setAttribute('fill', '#e8f0ff');
+                point.setAttribute('r', `${3 - star.magnitude * 0.4}`);
                 setTimeout(hideTooltip, 2000);
             });
 
