@@ -1719,9 +1719,12 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         // STYLED PANELS ONLY - elements with VISIBLE BACKGROUNDS
         // These get: rim effects (::before/::after), backdrop blur, BH/GW transforms
         // EXCLUDED (no visible background): .section-header, .closing, .verdict, etc.
+        // NOTE: Target OUTER containers, not inner elements (prevents nested glass effects)
 
         // PERFORMANCE: Single combined selector instead of 13 separate queries
-        const PANEL_SELECTOR = '.collapsible-inner, blockquote, .card, .distinction-card, .equation-box, .interactive-box, .show-quote, .thought-experiment, .ascii-interactive, .credence-bar, .character-card, .hybrid-card, .attribution';
+        // Changed: .credence-bar → .credence-dashboard (outer container)
+        // Added: .mirror-section (outer container for mirror viz, blockquote, attribution)
+        const PANEL_SELECTOR = '.collapsible-inner, blockquote, .card, .distinction-card, .equation-box, .interactive-box, .show-quote, .thought-experiment, .ascii-interactive, .credence-dashboard, .character-card, .hybrid-card, .attribution, .mirror-section';
 
         const elements: HTMLElement[] = [];
         const viewportHeight = window.innerHeight;
@@ -1731,6 +1734,11 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         document.querySelectorAll<HTMLElement>(PANEL_SELECTOR).forEach(el => {
             // Skip if hidden (offsetHeight/Width are 0 for display:none)
             if (el.offsetHeight === 0 || el.offsetWidth === 0) return;
+
+            // Skip elements nested inside another panel element
+            // This prevents the "taped on" look where inner elements get separate effects
+            const hasGlassParent = el.parentElement?.closest(PANEL_SELECTOR);
+            if (hasGlassParent) return;  // Parent will handle glass effects
 
             // FLICKERING FIX: For Glass Forest container, use aggressive caching
             // The inner animations cause layout thrashing - cache rect once and stick with it
