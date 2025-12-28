@@ -152,6 +152,59 @@ export let eyePairs: EyePair[] = [];
 export let forestMouseX = 0;
 export let forestMouseY = 0;
 
+// ─── CLEANUP STATE ───
+// Store interval/listener references for cleanup on reinit
+let blinkIntervalId: number | null = null;
+let mouseMoveHandler: ((e: MouseEvent) => void) | null = null;
+let touchStartHandler: ((e: TouchEvent) => void) | null = null;
+let touchMoveHandler: ((e: TouchEvent) => void) | null = null;
+let touchEndHandler: (() => void) | null = null;
+let resizeHandler: (() => void) | null = null;
+
+// Cached container rect for performance (updated on resize)
+let cachedContainerRect: DOMRect | null = null;
+let containerElement: HTMLElement | null = null;
+
+function updateCachedRect(): void {
+    if (containerElement) {
+        cachedContainerRect = containerElement.getBoundingClientRect();
+    }
+}
+
+function cleanupForest(): void {
+    // Clear blink interval
+    if (blinkIntervalId !== null) {
+        clearInterval(blinkIntervalId);
+        blinkIntervalId = null;
+    }
+
+    // Remove event listeners
+    if (mouseMoveHandler) {
+        document.removeEventListener('mousemove', mouseMoveHandler);
+        mouseMoveHandler = null;
+    }
+    if (touchStartHandler) {
+        document.removeEventListener('touchstart', touchStartHandler);
+        touchStartHandler = null;
+    }
+    if (touchMoveHandler) {
+        document.removeEventListener('touchmove', touchMoveHandler);
+        touchMoveHandler = null;
+    }
+    if (touchEndHandler) {
+        document.removeEventListener('touchend', touchEndHandler);
+        touchEndHandler = null;
+    }
+    if (resizeHandler) {
+        window.removeEventListener('resize', resizeHandler);
+        resizeHandler = null;
+    }
+
+    // Clear cached rect
+    cachedContainerRect = null;
+    containerElement = null;
+}
+
 export function addForestEye(container: HTMLElement, _index: number): number {
     const eye = document.createElement('span');
     eye.className = 'forest-eye';
@@ -370,8 +423,19 @@ function isPointBetweenEyes(px: number, py: number, eye1: ForestEye, eye2: Fores
 }
 
 export function initHeroForest(): void {
+    // Clean up any previous initialization
+    cleanupForest();
+
     const container = document.getElementById('hero-forest');
     if (!container) return;
+
+    // Store container reference and cache rect
+    containerElement = container;
+    updateCachedRect();
+
+    // Update cached rect on resize (debounced via existing resize handler)
+    resizeHandler = updateCachedRect;
+    window.addEventListener('resize', resizeHandler);
 
     const treesEl = document.getElementById('forest-trees');
     const fog1 = document.getElementById('fog-1');
@@ -432,7 +496,8 @@ export function initHeroForest(): void {
         if (!isImmediateTouch && now - lastPointerUpdate < POINTER_THROTTLE) return;
         lastPointerUpdate = now;
 
-        const rect = container.getBoundingClientRect();
+        // Use cached rect for performance (updated on resize)
+        const rect = cachedContainerRect || container.getBoundingClientRect();
         forestMouseX = clientX - rect.left;
         forestMouseY = clientY - rect.top;
 
@@ -657,10 +722,11 @@ export function initHeroForest(): void {
         }, 9000);
     }
 
-    // Mouse tracking (desktop)
-    document.addEventListener('mousemove', (e: MouseEvent) => {
+    // Mouse tracking (desktop) - store handler for cleanup
+    mouseMoveHandler = (e: MouseEvent) => {
         handlePointerMove(e.clientX, e.clientY);
-    });
+    };
+    document.addEventListener('mousemove', mouseMoveHandler);
 
     // Mobile: Touch-based eye tracking + optional gyroscope
     if (isMobile) {
@@ -786,8 +852,8 @@ export function initHeroForest(): void {
             return target.closest(ignoredSelectors) !== null;
         }
 
-        // Touch handling for mobile
-        document.addEventListener('touchstart', (e: TouchEvent) => {
+        // Touch handling for mobile - store handlers for cleanup
+        touchStartHandler = (e: TouchEvent) => {
             // Don't track eyes when tapping UI elements
             if (shouldIgnoreTouch(e.target)) return;
 
@@ -805,9 +871,10 @@ export function initHeroForest(): void {
                 // Mark as activated (hides hint)
                 container?.classList.add('touch-active');
             }
-        }, { passive: true });
+        };
+        document.addEventListener('touchstart', touchStartHandler, { passive: true });
 
-        document.addEventListener('touchmove', (e: TouchEvent) => {
+        touchMoveHandler = (e: TouchEvent) => {
             // Only track if we started tracking (isTouchActive)
             if (!isTouchActive) return;
 
@@ -815,9 +882,10 @@ export function initHeroForest(): void {
                 const touch = e.touches[0];
                 handlePointerMove(touch.clientX, touch.clientY, false);
             }
-        }, { passive: true });
+        };
+        document.addEventListener('touchmove', touchMoveHandler, { passive: true });
 
-        document.addEventListener('touchend', () => {
+        touchEndHandler = () => {
             if (!isTouchActive) return;
 
             isTouchActive = false;
@@ -828,12 +896,14 @@ export function initHeroForest(): void {
                     eye.el.style.transition = 'transform 0.3s ease-out';
                 });
             }
-        }, { passive: true });
+        };
+        document.addEventListener('touchend', touchEndHandler, { passive: true });
     }
 
     // Personality-aware blinking - slower interval on mobile for performance
-    const blinkInterval = isMobile ? 2000 : 1000;
-    setInterval(() => {
+    // Store interval ID for cleanup on reinit
+    const blinkIntervalMs = isMobile ? 2000 : 1000;
+    blinkIntervalId = window.setInterval(() => {
         if (forestEyes.length > 0) {
             // On mobile, only check a subset of eyes per interval
             const eyesToCheck = isMobile
@@ -857,5 +927,5 @@ export function initHeroForest(): void {
                 }
             });
         }
-    }, blinkInterval);
+    }, blinkIntervalMs);
 }

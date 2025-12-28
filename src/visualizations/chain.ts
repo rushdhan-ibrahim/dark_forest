@@ -60,7 +60,18 @@ export function initChain(): void {
         const padLeft = Math.floor(padTotal / 2);
         const padRight = padTotal - padLeft;
         const centeredName = ' '.repeat(padLeft) + displayName + ' '.repeat(padRight);
-        node.innerHTML = `╭${'─'.repeat(boxWidth)}╮<br>│${centeredName}│<br>╰${'─'.repeat(boxWidth)}╯`;
+
+        // Build box using safe textContent (no innerHTML)
+        const topLine = `╭${'─'.repeat(boxWidth)}╮`;
+        const midLine = `│${centeredName}│`;
+        const botLine = `╰${'─'.repeat(boxWidth)}╯`;
+
+        // Use line breaks as text nodes
+        node.appendChild(document.createTextNode(topLine));
+        node.appendChild(document.createElement('br'));
+        node.appendChild(document.createTextNode(midLine));
+        node.appendChild(document.createElement('br'));
+        node.appendChild(document.createTextNode(botLine));
 
         node.style.left = (spacing + i * (nodeWidth + arrowWidth + spacing)) + 'px';
         node.style.color = data.color;

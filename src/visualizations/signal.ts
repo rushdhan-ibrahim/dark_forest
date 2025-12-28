@@ -2,15 +2,34 @@
 
 import { observeVisibility, prefersReducedMotion } from '../utils/visibility';
 
+// ─── MODULE-LEVEL STATE ───
+// Store intervals at module level for cleanup on reinit
+let waveInterval: number | null = null;
+let yearInterval: number | null = null;
+let signalYear = 0;
+let decodedChars: string[] = [];
+
+function cleanupSignal(): void {
+    if (waveInterval !== null) {
+        clearInterval(waveInterval);
+        waveInterval = null;
+    }
+    if (yearInterval !== null) {
+        clearInterval(yearInterval);
+        yearInterval = null;
+    }
+}
+
 export function initSignal(): void {
+    // Clean up any previous initialization
+    cleanupSignal();
+
     const container = document.getElementById('signal-container');
     if (!container) return;
 
     const rnaSequence = 'G·U·A·C·G·U·A·C';
-    let signalYear = 0;
-    let decodedChars: string[] = [];
-    let waveInterval: number | null = null;
-    let yearInterval: number | null = null;
+    signalYear = 0;
+    decodedChars = [];
 
     function createWave(): void {
         if (!container || prefersReducedMotion()) return;
