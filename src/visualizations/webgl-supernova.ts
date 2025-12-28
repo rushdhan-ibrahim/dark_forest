@@ -44,22 +44,40 @@ float n(vec2 p) {
                mix(h(i + vec2(0,1)), h(i + vec2(1,1)), f.x), f.y);
 }
 
+// PERFORMANCE: Precomputed rotation matrices (GPU constants vs per-call trig)
+const mat2 ROT_05 = mat2(0.8776, 0.4794, -0.4794, 0.8776);  // rot2D(0.5)
+const mat2 ROT_04 = mat2(0.9211, 0.3894, -0.3894, 0.9211);  // rot2D(0.4)
+
+// Optimized FBM - 3 octaves with precomputed rotation
 float fbm3(vec2 p) {
-    return n(p) * 0.5 + n(p * 2.0) * 0.25 + n(p * 4.0) * 0.25;
+    float v = 0.0;
+    float a = 0.5;
+    for (int i = 0; i < 3; i++) {
+        v += a * n(p);
+        p = ROT_05 * p * 2.0 + 0.3;
+        a *= 0.5;
+    }
+    return v;
 }
 
+// Cheap FBM - 2 octaves for non-critical areas
 float fbm2(vec2 p) {
-    return n(p) * 0.65 + n(p * 2.0) * 0.35;
+    return n(p) * 0.7 + n(ROT_04 * p * 2.0) * 0.3;
+}
+
+// Single noise call - cheapest option
+float fbm1(vec2 p) {
+    return n(p);
 }
 
 // Domain warping for fluid-like nebulae
-// PERFORMANCE OPTIMIZED: Reduced from 5 fbm2 calls to 3 fbm2 calls (40% reduction)
+// PERFORMANCE: Uses fbm1 for initial warp, fbm2 only for final
 float warp(vec2 p, float t) {
-    vec2 q = vec2(fbm2(p), fbm2(p + vec2(5.2, 1.3)));
+    vec2 q = vec2(fbm1(p), fbm1(p + vec2(5.2, 1.3)));
     return fbm2(p + 2.5 * q + t * 0.06);
 }
 
-// 2D rotation matrix
+// 2D rotation matrix (for dynamic rotations only)
 mat2 rot2D(float a) {
     float c = cos(a), s = sin(a);
     return mat2(c, -s, s, c);
@@ -1566,6 +1584,11 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         return null;
     }
 
+    // PERFORMANCE: Disable unused GL state
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.STENCIL_TEST);
+    gl.disable(gl.CULL_FACE);
+
     // Enable blending for transparency
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -1650,28 +1673,10 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
     const glContext = gl;
 
     // ══════════════════════════════════════════════════════════════
-    // CANVAS SAMPLING - Adaptive glass response to WebGL content
-    // PERFORMANCE OPTIMIZED: Reduced sample size and frequency
+    // DETERMINISTIC GLASS STATE
+    // No canvas sampling - calculated from timeline phase
     // ══════════════════════════════════════════════════════════════
-    const SAMPLE_SIZE = 4;  // Was 8 - 75% fewer pixels to read
-    const sampleBuffer = new Uint8Array(SAMPLE_SIZE * SAMPLE_SIZE * 4);
-    let sampleSkip = 0;
-    let cssFrameCounter = 0;  // PERFORMANCE: Frame counter for CSS update throttling
-
-    // PERFORMANCE: Adaptive sample frequency based on phase
-    // During stable NS/BH phase, sample less frequently to reduce GPU→CPU sync stalls
-    function getSampleInterval(t: number): number {
-        if (t > 16) {
-            // NS/BH phase - very stable, sample much less
-            return isMobile ? 24 : 12;
-        }
-        if (t > 12) {
-            // Remnant phase - fairly stable
-            return isMobile ? 16 : 8;
-        }
-        // Flash/active phase - need more responsive sampling
-        return isMobile ? 12 : 6;
-    }
+    let cssFrameCounter = 0;  // Frame counter for CSS update throttling
 
     // Smoothed values for glass physics
     let glassLum = 0;
@@ -1727,15 +1732,15 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
             // Skip if hidden (offsetHeight/Width are 0 for display:none)
             if (el.offsetHeight === 0 || el.offsetWidth === 0) return;
 
-            // FLICKERING FIX: For .ascii-interactive containers, use cached rect
-            // during animations to prevent unstable visibility checks
+            // FLICKERING FIX: For Glass Forest container, use aggressive caching
+            // The inner animations cause layout thrashing - cache rect once and stick with it
             const isAsciiInteractive = el.classList.contains('ascii-interactive');
-            const hasAnimatingChildren = isAsciiInteractive &&
-                el.querySelector('.glass-node.firing, .glass-node.observing, .glass-node.dead, .glass-node.defector');
+            const isGlassForestContainer = isAsciiInteractive &&
+                el.querySelector('#glass-forest-container');
 
             let rect: DOMRect;
-            if (hasAnimatingChildren && stableRects.has(el)) {
-                // Use cached stable rect during animations
+            if (isGlassForestContainer && stableRects.has(el)) {
+                // Glass Forest: ALWAYS use cached rect to prevent flicker
                 rect = stableRects.get(el)!;
             } else {
                 rect = el.getBoundingClientRect();
@@ -1783,17 +1788,25 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         const currentSet = new Set(currentElements);
 
         // 1. REMOVE overlays from elements no longer in query (fixes flickering!)
-        // HYSTERESIS: Don't remove from animating containers to prevent flicker
+        // HYSTERESIS: Don't remove from Glass Forest or animating containers
         overlayElements.forEach(element => {
             if (!currentSet.has(element)) {
-                // Check if this is an animating container - if so, keep overlay
+                // Check if this is the Glass Forest container - NEVER remove its overlay
                 const isAsciiInteractive = element.classList.contains('ascii-interactive');
+                const isGlassForest = isAsciiInteractive &&
+                    element.querySelector('#glass-forest-container');
+
+                if (isGlassForest) {
+                    // Glass Forest: Keep overlay unconditionally to prevent flicker
+                    return; // Skip removal, element stays in overlayElements
+                }
+
+                // Check for other animating containers
                 const hasAnimatingChildren = isAsciiInteractive &&
                     element.querySelector('.glass-node.firing, .glass-node.observing, .glass-node.dead, .glass-node.defector');
 
                 if (hasAnimatingChildren) {
-                    // Keep overlay during animation - add back to currentSet tracking
-                    return; // Skip removal, element stays in overlayElements
+                    return; // Skip removal during animation
                 }
 
                 // Element left viewport or became hidden
@@ -1848,93 +1861,93 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         element.style.setProperty(name, value);
     }
 
-    // Sample canvas behind glass elements and update CSS variables
+    // ═══════════════════════════════════════════════════════════════════
+    // DETERMINISTIC GLASS LIGHTING - No GPU readback stalls
+    // Calculates expected luminance from timeline phase instead of sampling canvas
+    // This eliminates readPixels which causes GPU→CPU sync stalls
+    // ═══════════════════════════════════════════════════════════════════
     function updateGlassAdaptive(t: number): void {
         const elements = queryGlassElements();
         if (elements.length === 0) return;
 
-        // Throttled canvas sampling (adaptive based on phase)
-        const shouldSample = (sampleSkip++ % getSampleInterval(t)) === 0;
+        // ═══ DETERMINISTIC LUMINANCE FROM TIMELINE ═══
+        // Matches stardust_merged approach - no readPixels!
+        let targetLum = 0.12;  // Base nebula ambient
+        let impulse = 0;
+        let tintR = 140, tintG = 130, tintB = 180;  // Default purple nebula tint
 
-        // Calculate supernova screen position accounting for scroll
-        const scrollDelta = window.scrollY - scrollAtStart;
-        const supernovaY = supernovaScreenY - scrollDelta / window.innerHeight;
+        // ─── PROGENITOR PHASE (T < 9.8) ───
+        if (t < 9.8) {
+            const inst = smoothstep(0, 9, t);
+            // Star breathing pulse
+            targetLum = 0.15 + 0.08 * Math.sin(t * (1.5 + inst * 3)) * (1 + inst);
+            // Warm tint from star
+            const warmth = 0.3 + inst * 0.4;
+            tintR = lerp(140, 255, warmth);
+            tintG = lerp(130, 220, warmth);
+            tintB = lerp(180, 180, warmth);
 
-        // Flash timing (mirror shader for instant response)
-        // WEBGL_PHASES.progenitor ends at 10, explosion peaks around 10
-        const flash = smoothstep(9.8, 10.0, t) * (1 - smoothstep(10.0, 11.5, t));
-        const screenFlash = smoothstep(9.9, 10.05, t) * (1 - smoothstep(10.05, 10.8, t));
-        const eventLum = clamp01(screenFlash * 1.2 + flash * 0.5);
-
-        // Direct flash boost - bypasses smoothing for immediate rim response
-        const flashBurst = smoothstep(9.85, 10.0, t) * (1 - smoothstep(10.0, 10.5, t));
-
-        // Sample first visible element (primary glass panel)
-        if (shouldSample && elements.length > 0) {
-            const primaryElement = elements[0];
-            const rect = primaryElement.getBoundingClientRect();
-
-            if (rect.width > 10 && rect.height > 10) {
-                const dpr = Math.min(isMobile ? 1.0 : 1.5, window.devicePixelRatio);
-
-                // Sample center of glass panel
-                const cx = (rect.left + rect.width * 0.5) * dpr;
-                const cy = (window.innerHeight - (rect.top + rect.height * 0.5)) * dpr;
-
-                const S = Math.min(SAMPLE_SIZE, width, height);
-                if (S >= 2) {
-                    const x0 = Math.max(0, Math.min(width - S, Math.floor(cx - S * 0.5)));
-                    const y0 = Math.max(0, Math.min(height - S, Math.floor(cy - S * 0.5)));
-
-                    try {
-                        glContext.readPixels(x0, y0, S, S, glContext.RGBA, glContext.UNSIGNED_BYTE, sampleBuffer);
-
-                        let r = 0, g = 0, b = 0;
-                        let lumL = 0, lumR = 0, lumT = 0, lumB = 0;
-                        const half = S >> 1;
-                        const n = S * S;
-
-                        for (let y = 0; y < S; y++) {
-                            for (let x = 0; x < S; x++) {
-                                const k = (y * S + x) * 4;
-                                const rr = sampleBuffer[k];
-                                const gg = sampleBuffer[k + 1];
-                                const bb = sampleBuffer[k + 2];
-
-                                r += rr; g += gg; b += bb;
-
-                                // Luminance for gradient detection
-                                const l = (0.2126 * rr + 0.7152 * gg + 0.0722 * bb) / 255;
-
-                                // Split into quadrants for light direction
-                                if (x < half) lumL += l; else lumR += l;
-                                if (y < half) lumB += l; else lumT += l;
-                            }
-                        }
-
-                        r /= n; g /= n; b /= n;
-                        glassRGB = [r, g, b];
-
-                        // Light direction: gradient pointing toward brighter region
-                        const inv = 2.0 / n;
-                        const gX = (lumR - lumL) * inv;
-                        const gY = (lumB - lumT) * inv;
-
-                        const gMag = Math.hypot(gX, gY);
-                        if (gMag > 0.01) {
-                            lightDir[0] += (gX / gMag - lightDir[0]) * 0.3;
-                            lightDir[1] += (gY / gMag - lightDir[1]) * 0.3;
-                        }
-                    } catch {
-                        // Keep last values if readPixels fails
-                    }
-                }
+            // Instability flicker near end
+            if (t > 8.0) {
+                targetLum += 0.1 * Math.sin(t * 15) * (t - 8.0) / 1.8;
+            }
+        }
+        // ─── THE FLASH (T 9.8 - 11.5) ───
+        else if (t < 11.5) {
+            const flashPeak = 10.0;
+            const flash = Math.exp(-Math.pow((t - flashPeak) * 2.5, 2));
+            targetLum = 0.15 + flash * 0.85;
+            impulse = flash;
+            // White flash
+            tintR = lerp(180, 255, flash);
+            tintG = lerp(160, 250, flash);
+            tintB = lerp(200, 240, flash);
+        }
+        // ─── SHOCKWAVE & REMNANT (T 11.5 - 16) ───
+        else if (t < 16) {
+            const remnantGrow = smoothstep(12, 16, t);
+            targetLum = 0.18 + remnantGrow * 0.12;
+            // Nebula colors emerging
+            tintR = lerp(200, 170, remnantGrow);
+            tintG = lerp(180, 140, remnantGrow);
+            tintB = lerp(220, 200, remnantGrow);
+        }
+        // ─── FINAL PHASE (T > 16) ───
+        else {
+            if (config.fate < 0.5) {
+                // Neutron star - pulsar flashes
+                const pulsarRate = 1.5;
+                const pulse = 0.5 + 0.5 * Math.sin(t * pulsarRate * Math.PI * 2);
+                targetLum = 0.15 + 0.15 * pulse;
+                // Cool blue tint
+                tintR = 100; tintG = 140; tintB = 200;
+            } else {
+                // Black hole - dark with occasional Einstein ring glint
+                const bhForm = smoothstep(16, 20, t);
+                targetLum = 0.12 * (1 - bhForm * 0.5);
+                // Occasional ring glint
+                targetLum += 0.08 * Math.pow(Math.sin(t * 0.8), 4) * bhForm;
+                // Dark with warm accretion tint
+                tintR = lerp(140, 180, bhForm * Math.sin(t * 0.3) * 0.5 + 0.5);
+                tintG = lerp(130, 120, bhForm);
+                tintB = lerp(180, 140, bhForm);
             }
         }
 
-        // Override light direction to point toward supernova
-        // PERFORMANCE: Only use primary element (first in list) instead of looping
-        // The previous loop overwrote values, so only the last element mattered anyway
+        // ─── SMOOTH TRANSITIONS ───
+        glassLum += (targetLum - glassLum) * 0.12;
+        glassImpulse += (impulse - glassImpulse) * 0.2;
+        glassRGB[0] += (tintR - glassRGB[0]) * 0.08;
+        glassRGB[1] += (tintG - glassRGB[1]) * 0.08;
+        glassRGB[2] += (tintB - glassRGB[2]) * 0.08;
+
+        const imp = clamp01(glassImpulse * 3);
+
+        // ─── DETERMINISTIC LIGHT DIRECTION ───
+        // Point toward supernova during event, shift to BH during that phase
+        const scrollDelta = window.scrollY - scrollAtStart;
+        const supernovaY = supernovaScreenY - scrollDelta / window.innerHeight;
+
         if (t > 9.5 && t < 45 && elements.length > 0) {
             const primary = elements[0];
             const rect = primary.getBoundingClientRect();
@@ -1947,39 +1960,11 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
             const mag = Math.hypot(dx, dy);
 
             if (mag > 0.02) {
-                // Blend toward supernova direction during flash
-                const blendStrength = eventLum * 0.8;
+                const blendStrength = glassLum * 0.8;
                 lightDir[0] = lerp(lightDir[0], dx / mag, blendStrength);
                 lightDir[1] = lerp(lightDir[1], -dy / mag, blendStrength);
             }
         }
-
-        // Combine sampled luminance with event luminance
-        const sampledLum = (0.2126 * glassRGB[0] + 0.7152 * glassRGB[1] + 0.0722 * glassRGB[2]) / 255;
-
-        // ─── BASE LUMINANCE FLOOR ───
-        // Ensures effects are visible throughout the event, not just during flash
-        // Progenitor phase: gentle buildup as star swells
-        const progenitorGlow = smoothstep(0, 8, t) * smoothstep(10.5, 9, t) * 0.15;
-        // Remnant phase: residual glow from explosion
-        const remnantGlow = smoothstep(10.5, 12, t) * smoothstep(20, 14, t) * 0.25;
-        // Black hole phase: accretion disk ambient light
-        const bhGlow = config.fate > 0.5 ? smoothstep(16, 24, t) * 0.2 : 0;
-        // Neutron star: pulsar glow
-        const nsGlow = config.fate < 0.5 ? smoothstep(14, 18, t) * 0.18 : 0;
-
-        const baseLum = Math.max(progenitorGlow, remnantGlow, bhGlow, nsGlow);
-        const targetLum = clamp01(sampledLum * 0.5 + eventLum + baseLum);
-
-        // Smooth the luminance - faster during flash for responsiveness
-        const smoothingRate = eventLum > 0.3 ? 0.25 : 0.12;
-        const delta = targetLum - glassLum;
-        glassLum += delta * smoothingRate;
-
-        // Impulse tracks rate of change + direct flash contribution
-        glassImpulse += (Math.abs(delta) - glassImpulse) * 0.15;
-        glassImpulse = Math.max(glassImpulse, flashBurst * 0.8);
-        const imp = clamp01(glassImpulse * 4 + flashBurst * 0.5);
 
         // ─── BLACK HOLE GRAVITATIONAL EFFECTS ───
         let bhStrength = 0;
