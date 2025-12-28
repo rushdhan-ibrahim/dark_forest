@@ -3,6 +3,7 @@
 
 import { playGlassNodePing, playMutualAnnihilation } from '../audio/effects';
 import { getAudioContext, getMasterGain, getIsAudioPlaying } from '../audio/context';
+import { haptics } from '../haptics';
 
 // Game mode: one-shot (instant cascade) vs iterated (trust can build)
 export type GameMode = 'one-shot' | 'iterated';
@@ -392,6 +393,9 @@ function fireGlassNodeOneShot(shooterId: number): void {
     // Audio: Initial shot ping
     playGlassNodePing(shooterId, shooter.color);
 
+    // Haptic: Chain reaction starts - ominous beginning
+    haptics.chainStart();
+
     setTimeout(() => {
         if (phaseEl) {
             phaseEl.textContent = '⚠ MUZZLE FLASH DETECTED';
@@ -443,6 +447,9 @@ function fireGlassNodeOneShot(shooterId: number): void {
                 setTimeout(() => playGlassNodePing(i, n.color), i * 50);
             }
         });
+
+        // Haptic: Accelerating cascade of destruction
+        haptics.chainCascade();
     }, 2000);
 
     setTimeout(() => {
@@ -467,6 +474,9 @@ function fireGlassNodeOneShot(shooterId: number): void {
 
         // Audio: Destruction sound
         playMutualAnnihilation();
+
+        // Haptic: Heavy impact of mutual destruction
+        haptics.heavyImpact();
 
         glassState = 'dead';
     }, 2800);
@@ -643,6 +653,7 @@ function fireGlassNodeIterated(shooterId: number): void {
                 }
 
                 playMutualAnnihilation();
+                haptics.heavyImpact();  // Haptic: Mutual destruction
                 glassState = 'dead';
             }, livingNodes.length * 400 + 800);
         }

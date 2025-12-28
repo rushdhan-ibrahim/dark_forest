@@ -3,6 +3,7 @@
 import { eyeTrackingAudio } from '../audio/effects';
 import { triggerWhisper } from '../audio/whispers';
 import { getAudioContext, getMasterGain, getIsAudioPlaying } from '../audio/context';
+import { haptics } from '../haptics';
 
 /**
  * Play a subtle sound when paired eyes are interrupted
@@ -461,6 +462,9 @@ export function initHeroForest(): void {
 
                     // Audio feedback - a subtle "noticed" sound
                     playInterruptionSound();
+
+                    // Haptic feedback - eyes suddenly notice you
+                    haptics.eyesAlert();
                 }
                 // Extend interruption while cursor is between
                 eye1.interruptedUntil = Date.now() + 1000;
@@ -791,6 +795,9 @@ export function initHeroForest(): void {
                 isTouchActive = true;
                 touchStartTime = performance.now();
                 const touch = e.touches[0];
+
+                // Haptic feedback - subtle acknowledgment of touch
+                haptics.eyeFocus();
 
                 // Immediate feedback - eyes snap to touch point
                 handlePointerMove(touch.clientX, touch.clientY, true);

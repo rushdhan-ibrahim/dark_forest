@@ -7,6 +7,7 @@ import {
 } from './webgl-supernova';
 
 import { getMasterGain } from '../audio/context';
+import { haptics } from '../haptics';
 
 // ============================================================================
 // TYPES AND INTERFACES
@@ -3187,8 +3188,9 @@ export function initCosmicEvents(): void {
                 return;
             }
 
-            // Increment tap count
+            // Increment tap count with haptic feedback
             tapCount++;
+            haptics.tap();  // Subtle tap feedback
             updateTapIndicator();
 
             // Reset timer
@@ -3217,6 +3219,7 @@ export function initCosmicEvents(): void {
 
                 // Show brief activation flash on indicator
                 showTapActivation();
+                haptics.confirm();  // Confirmation haptic on trigger
 
                 createWebGLSupernovaEvent(clickTriggerNextFate, () => {
                     clickTriggerRunning = false;
