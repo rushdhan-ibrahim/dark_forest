@@ -14,6 +14,7 @@ uniform float T;
 uniform vec2 M;
 uniform float fate;
 uniform float age;
+uniform float mobile;  // 1.0 on mobile, 0.0 on desktop
 
 // Content box occlusion uniforms
 // Each box is: vec4(x, y, width, height) in normalized screen coords (0-1)
@@ -277,10 +278,12 @@ GlassData calculateGlassPhysics(vec2 screenUV, float lightIntensity, float flash
                 glass.refractionOffset += normal * refractionStrength;
                 glass.refraction = max(glass.refraction, refractionStrength * 12.0);
 
-                // Add dramatic warping
-                vec2 warp = calculateTextWarp(screenUV, boxCenter, boxHalfSize, flashLevel);
-                glass.refractionOffset += warp;
-                glass.warpFactor = length(warp) * 15.0;
+                // Warp calculation is expensive - skip on mobile
+                if (mobile < 0.5) {
+                    vec2 warp = calculateTextWarp(screenUV, boxCenter, boxHalfSize, flashLevel);
+                    glass.refractionOffset += warp;
+                    glass.warpFactor = length(warp) * 15.0;
+                }
 
                 // Obscuration during flash (text can be partially hidden)
                 glass.obscurationLevel = flashLevel * 0.5 * opacity;
@@ -292,37 +295,42 @@ GlassData calculateGlassPhysics(vec2 screenUV, float lightIntensity, float flash
     float absMinDist = abs(minDist);
 
     if (absMinDist < 0.06) {
-        // ═══ FRESNEL EDGE GLOW ═══
-        // iOS glass has bright edges where light catches the bevel
-        float fresnelWidth = 0.025;
-        if (absMinDist < fresnelWidth) {
-            float fresnel = 1.0 - (absMinDist / fresnelWidth);
-            fresnel = pow(fresnel, 1.5);
-            // Stronger on the "light-facing" edges
-            float lightFacing = max(0.0, dot(closestNormal, vec2(0.0, 1.0)) * 0.5 + 0.5);
-            glass.fresnel = fresnel * (0.6 + lightFacing * 0.4) * closestOpacity;
-        }
+        // Mobile: simplified edge effects (fresnel only, no bevel/specular)
+        // These subtle effects are barely visible on small screens
+        if (mobile > 0.5) {
+            float fresnelWidth = 0.025;
+            if (absMinDist < fresnelWidth) {
+                float fresnel = 1.0 - (absMinDist / fresnelWidth);
+                glass.fresnel = fresnel * closestOpacity * 0.8;
+            }
+        } else {
+            // Desktop: full edge effects
+            // ═══ FRESNEL EDGE GLOW ═══
+            float fresnelWidth = 0.025;
+            if (absMinDist < fresnelWidth) {
+                float fresnel = 1.0 - (absMinDist / fresnelWidth);
+                fresnel = pow(fresnel, 1.5);
+                float lightFacing = max(0.0, dot(closestNormal, vec2(0.0, 1.0)) * 0.5 + 0.5);
+                glass.fresnel = fresnel * (0.6 + lightFacing * 0.4) * closestOpacity;
+            }
 
-        // ═══ BEVEL HIGHLIGHT ═══
-        // 3D bevel effect - bright line at the very edge
-        float bevelWidth = 0.008;
-        if (absMinDist < bevelWidth) {
-            float bevel = 1.0 - (absMinDist / bevelWidth);
-            bevel = pow(bevel, 2.0);
-            glass.edgeBevel = bevel * closestOpacity;
-        }
+            // ═══ BEVEL HIGHLIGHT ═══
+            float bevelWidth = 0.008;
+            if (absMinDist < bevelWidth) {
+                float bevel = 1.0 - (absMinDist / bevelWidth);
+                bevel = pow(bevel, 2.0);
+                glass.edgeBevel = bevel * closestOpacity;
+            }
 
-        // ═══ SPECULAR HIGHLIGHT ═══
-        // Bright spots where light source reflects off glass surface
-        // Simulate light coming from center of screen (supernova position)
-        vec2 lightDir = normalize(vec2(0.0) - screenUV);
-        float specAngle = dot(closestNormal, lightDir);
+            // ═══ SPECULAR HIGHLIGHT ═══
+            vec2 lightDir = normalize(vec2(0.0) - screenUV);
+            float specAngle = dot(closestNormal, lightDir);
 
-        if (minDist < 0.0 && minDist > -0.03) {
-            // Inside glass, near edge
-            float spec = pow(max(0.0, specAngle), 8.0);
-            spec *= (1.0 - smoothstep(0.0, 0.03, -minDist));
-            glass.specular = spec * lightIntensity * closestOpacity * 0.8;
+            if (minDist < 0.0 && minDist > -0.03) {
+                float spec = pow(max(0.0, specAngle), 8.0);
+                spec *= (1.0 - smoothstep(0.0, 0.03, -minDist));
+                glass.specular = spec * lightIntensity * closestOpacity * 0.8;
+            }
         }
     }
 
@@ -555,7 +563,229 @@ vec3 neutron(vec2 p, float t) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// BLACK HOLE - Gravitational lensing and accretion
+// SHADER-BASED STARS - For gravitational lensing effects
+// ══════════════════════════════════════════════════════════════
+
+vec3 stars(vec2 p, float t, vec2 parallax) {
+    vec3 col = vec3(0.0);
+
+    // Three parallax layers (reduced to 2 on mobile)
+    float maxLayers = mobile > 0.5 ? 2.0 : 3.0;
+
+    for (float layer = 0.0; layer < 3.0; layer++) {
+        if (layer >= maxLayers) break;
+
+        float pStr = 0.02 + layer * 0.025;
+        float scale = 50.0 + layer * 45.0;
+        float density = 0.03 - layer * 0.008;
+
+        vec2 sp = (p + parallax * pStr) * scale;
+        vec2 id = floor(sp);
+        vec2 f = fract(sp) - 0.5;
+        float rnd = h(id + layer * 100.0);
+
+        if (rnd > 1.0 - density) {
+            float d = length(f);
+            float core = exp(-d * d * 55.0);
+            float halo = exp(-d * d * 15.0) * 0.2;
+
+            // Gentle twinkle
+            float twinkle = 0.6 + 0.4 * sin(t * (0.3 + rnd * 1.0) + rnd * TAU);
+
+            // Color variation
+            vec3 starCol = mix(vec3(0.9, 0.88, 0.85), vec3(0.85, 0.88, 0.95), rnd);
+            if (rnd > 0.97) starCol = mix(starCol, vec3(1.0, 0.9, 0.8), 0.5); // Bright warm
+
+            col += starCol * (core + halo) * twinkle * (0.6 + layer * 0.15);
+        }
+    }
+
+    return col;
+}
+
+// ══════════════════════════════════════════════════════════════
+// GRAVITATIONAL WAVES - Spacetime ripples from BH formation
+// ══════════════════════════════════════════════════════════════
+
+vec2 gravitationalWaves(vec2 uv, float t, float bhForm) {
+    if (bhForm < 0.01) return vec2(0.0);
+
+    float r = length(uv);
+    float ang = atan(uv.y, uv.x);
+
+    float waveStart = 12.0;
+    float elapsed = t - waveStart;
+    if (elapsed < 0.0) return vec2(0.0);
+
+    vec2 totalOffset = vec2(0.0);
+
+    // Initial burst during collapse
+    float burstAge = elapsed;
+    if (burstAge < 8.0) {
+        float burstR = burstAge * 0.15;
+        float burstW = 0.03 + burstAge * 0.02;
+
+        float wave = sin((r - burstR) * 40.0 - burstAge * 3.0);
+        wave *= exp(-pow((r - burstR) / burstW, 2.0));
+        wave *= exp(-burstAge * 0.4);
+
+        // Quadrupole pattern
+        float hPlus = wave * cos(2.0 * ang);
+        float hCross = wave * sin(2.0 * ang);
+
+        float amplitude = 0.015 * bhForm;
+        totalOffset += vec2(hPlus, hCross) * amplitude;
+    }
+
+    // Ringdown waves (QNM ringing)
+    float ringdownStart = 4.0;
+    float ringdownAge = elapsed - ringdownStart;
+    if (ringdownAge > 0.0 && ringdownAge < 12.0) {
+        for (float mode = 0.0; mode < 3.0; mode++) {
+            float freq = 2.5 - mode * 0.6;
+            float decay = 0.3 + mode * 0.15;
+            float phase = mode * 1.5;
+
+            float modeR = ringdownAge * (0.08 + mode * 0.03);
+            float modeW = 0.025 + ringdownAge * 0.015;
+
+            float wave = sin((r - modeR) * (30.0 - mode * 5.0) + phase);
+            wave *= exp(-pow((r - modeR) / modeW, 2.0));
+            wave *= exp(-ringdownAge * decay);
+            wave *= (1.0 - mode * 0.3);
+
+            float hPlus = wave * cos(2.0 * ang + mode);
+            float hCross = wave * sin(2.0 * ang + mode);
+
+            float amplitude = 0.008 * bhForm;
+            totalOffset += vec2(hPlus, hCross) * amplitude;
+        }
+    }
+
+    // Continuous subtle waves
+    if (bhForm > 0.5) {
+        float continuousWave = sin(r * 25.0 - t * 1.5) * 0.3;
+        continuousWave += sin(r * 18.0 - t * 2.1 + 1.0) * 0.2;
+        continuousWave *= exp(-r * 2.0);
+        continuousWave *= (bhForm - 0.5) * 2.0;
+
+        float hh = continuousWave * cos(2.0 * ang + t * 0.1);
+        totalOffset += vec2(hh, hh * 0.5) * 0.003;
+    }
+
+    return totalOffset;
+}
+
+// Visible gravitational wave glow
+vec3 gravitationalWaveGlow(vec2 uv, float t, float bhForm) {
+    if (bhForm < 0.01) return vec3(0.0);
+
+    float r = length(uv);
+    float elapsed = t - 12.0;
+    if (elapsed < 0.0) return vec3(0.0);
+
+    vec3 col = vec3(0.0);
+
+    // Expanding wave fronts
+    for (float i = 0.0; i < 4.0; i++) {
+        float waveStart = i * 1.5;
+        float waveAge = elapsed - waveStart;
+
+        if (waveAge > 0.0 && waveAge < 10.0) {
+            float waveR = waveAge * 0.12;
+            float waveW = 0.015 + waveAge * 0.008;
+
+            float wave = exp(-pow((r - waveR) / waveW, 2.0));
+            wave *= exp(-waveAge * 0.35);
+            wave *= smoothstep(0.0, 0.5, waveAge);
+
+            vec3 waveCol = mix(purple, blue, 0.5) * 0.15;
+            col += waveCol * wave * bhForm;
+        }
+    }
+
+    return col;
+}
+
+// ══════════════════════════════════════════════════════════════
+// GRAVITATIONAL LENSING - Light bending around black hole
+// ══════════════════════════════════════════════════════════════
+
+vec2 gravitationalLens(vec2 uv, float strength, float time) {
+    if (strength < 0.001) return uv;
+
+    float r = length(uv);
+    if (r < 0.001) return uv;
+
+    float rs = 0.08 * strength;
+    float rPhoton = rs * 1.5;
+
+    // Radial deflection
+    float deflection = (rs * rs) / (r * r + rs * rs * 0.2);
+    deflection *= 1.5;
+
+    // Enhanced magnification near photon sphere
+    float photonBoost = exp(-pow((r - rPhoton) / (rs * 0.6), 2.0)) * 0.8;
+    deflection += photonBoost;
+
+    // Frame dragging (Kerr black hole spin)
+    float spin = 0.85;
+    float frameDrag = spin * rs * rs / (r * r + rs * 0.15);
+    float dragAngle = frameDrag * strength * (1.0 + 0.4 * sin(time * 0.15));
+
+    vec2 dir = uv / r;
+
+    // Rotate by frame-dragging
+    float c = cos(dragAngle);
+    float s = sin(dragAngle);
+    vec2 rotatedDir = vec2(dir.x * c - dir.y * s, dir.x * s + dir.y * c);
+
+    // Push coordinates outward
+    vec2 lensedUV = uv + rotatedDir * deflection * r;
+
+    // Event horizon collapse
+    float horizonPull = smoothstep(rs * 2.0, rs * 0.8, r);
+    lensedUV = mix(lensedUV, uv * 0.05, horizonPull * strength);
+
+    // Tangential stretching
+    float tangentStretch = 1.0 + (rs / (r + rs * 0.5)) * 0.6 * strength;
+    float ang = atan(lensedUV.y, lensedUV.x);
+    float newR = length(lensedUV);
+    lensedUV = vec2(cos(ang), sin(ang)) * newR * tangentStretch;
+
+    return lensedUV;
+}
+
+// Secondary lensing for Einstein ring ghost images
+vec2 secondaryLens(vec2 uv, float strength) {
+    if (strength < 0.01) return uv;
+
+    float r = length(uv);
+    float rs = 0.08 * strength;
+
+    float wrapFactor = rs * rs / (r * r + rs * rs * 0.3);
+    float ang = atan(uv.y, uv.x) + PI * wrapFactor * 2.5;
+    float newR = r * (1.0 + wrapFactor);
+
+    return vec2(cos(ang), sin(ang)) * newR;
+}
+
+// Tertiary lensing - even more wrapped light
+vec2 tertiaryLens(vec2 uv, float strength) {
+    if (strength < 0.1) return uv;
+
+    float r = length(uv);
+    float rs = 0.08 * strength;
+
+    float wrapFactor = rs * rs / (r * r + rs * rs * 0.2);
+    float ang = atan(uv.y, uv.x) + PI * 2.0 * wrapFactor * 3.0;
+    float newR = r * (1.0 + wrapFactor * 1.5);
+
+    return vec2(cos(ang), sin(ang)) * newR;
+}
+
+// ══════════════════════════════════════════════════════════════
+// BLACK HOLE - Enhanced with Einstein ring and multiple photon rings
 // ══════════════════════════════════════════════════════════════
 
 vec3 blackhole(vec2 p, float t) {
@@ -565,16 +795,21 @@ vec3 blackhole(vec2 p, float t) {
     float form = smoothstep(16.0, 20.0, t);
     if (form < 0.01) return vec3(0.0);
 
-    float rH = 0.055 * form;
-    float rPhoton = rH * 2.6;
+    // Larger black hole for dramatic effect
+    float rH = 0.08 * form;
+    float rPhoton = rH * 1.5;
 
     vec3 col = vec3(0.0);
 
-    // Photon ring - shimmer
-    float ringW = rH * 0.12;
+    // Shadow - larger and darker
+    float shadow = smoothstep(rH * 0.85, rH * 1.8, r);
+
+    // Photon ring - brighter shimmer
+    float ringW = rH * 0.15;
     float ring = exp(-pow((r - rPhoton) / ringW, 2.0));
-    float shimmer = 0.7 + 0.3 * sin(ang * 8.0 + t * 2.0);
-    col += mix(dust, rose, 0.4) * ring * shimmer * form * 0.5;
+    float shimmer = 0.6 + 0.4 * sin(ang * 6.0 + t * 2.5);
+    shimmer *= 0.8 + 0.2 * sin(ang * 13.0 - t * 1.8);
+    col += mix(dust, rose, 0.4) * ring * shimmer * form * 0.7;
 
     // Accretion disk with Doppler
     float diskTilt = 0.38;
@@ -595,6 +830,7 @@ vec3 blackhole(vec2 p, float t) {
     diskBand *= smoothstep(diskInner * 0.9, diskInner * 1.2, diskR);
     diskBand *= smoothstep(diskOuter * 1.1, diskOuter * 0.8, diskR);
 
+    // Doppler effect
     float doppler = 0.5 + 0.5 * cos(diskAng - 0.6);
     doppler = pow(doppler, 1.7);
 
@@ -634,13 +870,41 @@ vec3 blackhole(vec2 p, float t) {
     innerGlow *= smoothstep(rH * 0.95, rH * 1.4, r);
     col += purple * 0.35 * innerGlow * form;
 
-    // Event horizon - creates darkness
+    // Event horizon
     float horizon = 1.0 - smoothstep(rH * 0.88, rH * 1.0, r);
     col *= (1.0 - horizon);
+    col *= shadow;
 
     // Edge glow
     float edgeGlow = exp(-pow(r - rH, 2.0) * 180.0) * (1.0 - horizon);
     col += purple * 0.3 * edgeGlow * form;
+
+    // ─── EINSTEIN RING ───
+    float einsteinR = rH * 2.8;
+    float einsteinW = rH * 0.2;
+    float einstein = exp(-pow((r - einsteinR) / einsteinW, 2.0));
+
+    float ringVar = 0.6 + 0.4 * sin(ang * 2.0 + t * 0.4);
+    ringVar *= 0.75 + 0.25 * sin(ang * 7.0 - t * 0.25);
+
+    vec3 einsteinCol = mix(warmWhite, mix(dust, teal, 0.5), 0.25);
+    einsteinCol = mix(einsteinCol, rose * 1.3, sin(ang + t * 0.15) * 0.35 + 0.35);
+
+    col += einsteinCol * einstein * ringVar * form * 0.5;
+
+    // ─── SECONDARY PHOTON RING ───
+    float secondaryR = rH * 1.6;
+    float secondaryW = rH * 0.08;
+    float secondary = exp(-pow((r - secondaryR) / secondaryW, 2.0));
+    secondary *= 0.5 + 0.5 * sin(ang * 4.0 - t * 0.7);
+    col += mix(blue, purple, 0.5) * secondary * form * 0.3;
+
+    // ─── TERTIARY PHOTON RING ───
+    float tertiaryR = rH * 1.25;
+    float tertiaryW = rH * 0.04;
+    float tertiary = exp(-pow((r - tertiaryR) / tertiaryW, 2.0));
+    tertiary *= 0.6 + 0.4 * sin(ang * 5.0 + t * 0.5);
+    col += teal * 0.8 * tertiary * form * 0.2;
 
     return col;
 }
@@ -674,21 +938,46 @@ vec3 sampleSupernova(vec2 uv, float t) {
 vec3 sampleWithBlur(vec2 uv, float blurRadius) {
     vec3 total = vec3(0.0);
 
-    // 9-sample Gaussian blur kernel
-    float weights[9];
-    weights[0] = 0.0625; weights[1] = 0.125; weights[2] = 0.0625;
-    weights[3] = 0.125;  weights[4] = 0.25;  weights[5] = 0.125;
-    weights[6] = 0.0625; weights[7] = 0.125; weights[8] = 0.0625;
+    // Mobile: use 5-sample blur (center + cross pattern)
+    // Desktop: use 9-sample Gaussian blur kernel
+    if (mobile > 0.5) {
+        // 5-sample cross pattern - much faster
+        float weights[5];
+        weights[0] = 0.4;   // center
+        weights[1] = 0.15;  // up
+        weights[2] = 0.15;  // down
+        weights[3] = 0.15;  // left
+        weights[4] = 0.15;  // right
 
-    vec2 offsets[9];
-    offsets[0] = vec2(-1.0, -1.0); offsets[1] = vec2(0.0, -1.0); offsets[2] = vec2(1.0, -1.0);
-    offsets[3] = vec2(-1.0,  0.0); offsets[4] = vec2(0.0,  0.0); offsets[5] = vec2(1.0,  0.0);
-    offsets[6] = vec2(-1.0,  1.0); offsets[7] = vec2(0.0,  1.0); offsets[8] = vec2(1.0,  1.0);
+        vec2 offsets[5];
+        offsets[0] = vec2(0.0, 0.0);
+        offsets[1] = vec2(0.0, -1.0);
+        offsets[2] = vec2(0.0, 1.0);
+        offsets[3] = vec2(-1.0, 0.0);
+        offsets[4] = vec2(1.0, 0.0);
 
-    for (int i = 0; i < 9; i++) {
-        vec2 sampleUV = uv + offsets[i] * blurRadius * 0.003;
-        vec3 s = sampleSupernova(sampleUV, T);
-        total += s * weights[i];
+        for (int i = 0; i < 5; i++) {
+            vec2 sampleUV = uv + offsets[i] * blurRadius * 0.004;
+            vec3 s = sampleSupernova(sampleUV, T);
+            total += s * weights[i];
+        }
+    } else {
+        // Full 9-sample Gaussian for desktop
+        float weights[9];
+        weights[0] = 0.0625; weights[1] = 0.125; weights[2] = 0.0625;
+        weights[3] = 0.125;  weights[4] = 0.25;  weights[5] = 0.125;
+        weights[6] = 0.0625; weights[7] = 0.125; weights[8] = 0.0625;
+
+        vec2 offsets[9];
+        offsets[0] = vec2(-1.0, -1.0); offsets[1] = vec2(0.0, -1.0); offsets[2] = vec2(1.0, -1.0);
+        offsets[3] = vec2(-1.0,  0.0); offsets[4] = vec2(0.0,  0.0); offsets[5] = vec2(1.0,  0.0);
+        offsets[6] = vec2(-1.0,  1.0); offsets[7] = vec2(0.0,  1.0); offsets[8] = vec2(1.0,  1.0);
+
+        for (int i = 0; i < 9; i++) {
+            vec2 sampleUV = uv + offsets[i] * blurRadius * 0.003;
+            vec3 s = sampleSupernova(sampleUV, T);
+            total += s * weights[i];
+        }
     }
 
     return total;
@@ -698,8 +987,13 @@ void main() {
     vec2 uv = (gl_FragCoord.xy - 0.5 * R) / R.y;
     vec2 screenUV = gl_FragCoord.xy / R;  // 0-1 screen coordinates
 
+    // Scale down supernova on mobile so it doesn't overwhelm the smaller screen
+    float mobileScale = mobile > 0.5 ? 1.35 : 1.0;
+    uv *= mobileScale;
+
     vec2 m = (M / R) * 2.0 - 1.0;
     m.x *= R.x / R.y;
+    vec2 parallax = m * 0.08;
 
     // Gentle drift
     uv += vec2(sin(T * 0.018), cos(T * 0.014)) * 0.008;
@@ -713,6 +1007,18 @@ void main() {
     float screenFlash = smoothstep(9.9, 10.05, T) * (1.0 - smoothstep(10.05, 10.8, T));
     float totalFlash = flash + screenFlash;
     float flashLevel = smoothstep(9.5, 10.0, T) * (1.0 - smoothstep(10.0, 12.0, T));
+
+    // ═══ BLACK HOLE GRAVITATIONAL EFFECTS ═══
+    float bhFormation = 0.0;
+    float lensStrength = 0.0;
+    if (fate > 0.5) {
+        bhFormation = smoothstep(12.0, 20.0, T);
+        lensStrength = smoothstep(16.0, 24.0, T);
+    }
+
+    // Apply gravitational wave distortion to coordinates
+    vec2 gwOffset = gravitationalWaves(uv, T, bhFormation);
+    vec2 gwDistortedUV = uv + gwOffset;
 
     // ═══ iOS GLASS PHYSICS (THREE-TIER SYSTEM) ═══
     float lightIntensity = totalFlash * 2.0 + 0.5;
@@ -731,12 +1037,14 @@ void main() {
             float blurRadius = 2.0 + glass.poolGradient * 1.5;
             col = sampleWithBlur(refractedUV, blurRadius);
 
-            // Mild chromatic aberration
-            float caStrength = glass.refraction * 0.015 * (1.0 + totalFlash * 0.5);
-            vec2 caDir = normalize(glass.refractionOffset + vec2(0.001));
-            vec3 colR = sampleSupernova(refractedUV + caDir * caStrength, T);
-            vec3 colB = sampleSupernova(refractedUV - caDir * caStrength, T);
-            col = vec3(colR.r, col.g, colB.b);
+            // Chromatic aberration - skip extra samples on mobile
+            if (mobile < 0.5) {
+                float caStrength = glass.refraction * 0.015 * (1.0 + totalFlash * 0.5);
+                vec2 caDir = normalize(glass.refractionOffset + vec2(0.001));
+                vec3 colR = sampleSupernova(refractedUV + caDir * caStrength, T);
+                vec3 colB = sampleSupernova(refractedUV - caDir * caStrength, T);
+                col = vec3(colR.r, col.g, colB.b);
+            }
 
             // Add flash
             col += warmWhite * flash * exp(-length(refractedUV) * 1.0) * 1.8;
@@ -767,32 +1075,40 @@ void main() {
         // TYPE 2: TEXT BOX - Dramatic light warping
         // ═══════════════════════════════════════════════════════════
         } else if (glass.glassType > 1.5) {
-            // ═══ ENHANCED CHROMATIC ABERRATION ═══
-            // Much stronger during flash, creates dramatic rainbow edges
-            float caBase = 0.025;
-            float caFlash = caBase * (1.0 + flashLevel * 4.0);
-            // Time-based flutter for organic feel
-            float flutter = sin(T * 3.0) * 0.3 + sin(T * 7.0) * 0.15;
-            caFlash *= (1.0 + flutter * flashLevel);
+            // Mobile: simplified rendering (single sample + flash)
+            // Desktop: full chromatic aberration with color bleeding
+            if (mobile > 0.5) {
+                // Simple sample with basic CA approximation
+                col = sampleSupernova(refractedUV, T);
+                // Fake CA by shifting color channels slightly
+                float caShift = 0.02 * (1.0 + flashLevel * 2.0);
+                col.r *= 1.0 + caShift;
+                col.b *= 1.0 - caShift * 0.5;
+            } else {
+                // ═══ ENHANCED CHROMATIC ABERRATION ═══
+                float caBase = 0.025;
+                float caFlash = caBase * (1.0 + flashLevel * 4.0);
+                float flutter = sin(T * 3.0) * 0.3 + sin(T * 7.0) * 0.15;
+                caFlash *= (1.0 + flutter * flashLevel);
 
-            vec2 caDir = normalize(glass.refractionOffset + vec2(0.001));
-            vec3 colR = sampleSupernova(refractedUV + caDir * caFlash * 1.5, T);
-            vec3 colG = sampleSupernova(refractedUV, T);
-            vec3 colB = sampleSupernova(refractedUV - caDir * caFlash * 1.5, T);
-            col = vec3(colR.r, colG.g, colB.b);
+                vec2 caDir = normalize(glass.refractionOffset + vec2(0.001));
+                vec3 colR = sampleSupernova(refractedUV + caDir * caFlash * 1.5, T);
+                vec3 colG = sampleSupernova(refractedUV, T);
+                vec3 colB = sampleSupernova(refractedUV - caDir * caFlash * 1.5, T);
+                col = vec3(colR.r, colG.g, colB.b);
+
+                // ═══ COLOR BLEEDING DURING FLASH ═══
+                if (flashLevel > 0.1) {
+                    vec3 bleed = vec3(0.0);
+                    bleed.r = sampleSupernova(refractedUV + vec2(0.025, 0.0) * flashLevel, T).r;
+                    bleed.b = sampleSupernova(refractedUV - vec2(0.025, 0.0) * flashLevel, T).b;
+                    col = mix(col, bleed, flashLevel * 0.35);
+                }
+            }
 
             // Add flash with extra intensity
             col += warmWhite * flash * exp(-length(refractedUV) * 1.0) * 2.2;
             col += warmWhite * screenFlash * 1.3;
-
-            // ═══ COLOR BLEEDING DURING FLASH ═══
-            // Extra dramatic during peak moments
-            if (flashLevel > 0.1) {
-                vec3 bleed = vec3(0.0);
-                bleed.r = sampleSupernova(refractedUV + vec2(0.025, 0.0) * flashLevel, T).r;
-                bleed.b = sampleSupernova(refractedUV - vec2(0.025, 0.0) * flashLevel, T).b;
-                col = mix(col, bleed, flashLevel * 0.35);
-            }
 
             // ═══ OBSCURATION LAYER ═══
             // Semi-transparent overlay during flash - "too bright to read" effect
@@ -826,9 +1142,44 @@ void main() {
         col += warmWhite * glass.specular * (1.0 + totalFlash * 2.5);
 
     } else {
-        // ═══ OUTSIDE GLASS: Full intensity supernova ═══
-        col = sampleSupernova(uv, T);
-        col += warmWhite * flash * exp(-length(uv) * 1.2) * 1.5;
+        // ═══ OUTSIDE GLASS: Full intensity supernova with gravitational effects ═══
+
+        // ═══ SHADER-BASED STARS WITH GRAVITATIONAL LENSING ═══
+        if (lensStrength > 0.01) {
+            // Apply gravitational lensing to star coordinates
+            vec2 lensedStarUV = gravitationalLens(gwDistortedUV, lensStrength, T);
+            col = stars(lensedStarUV, T, parallax) * 0.3;
+
+            // Add secondary lensed star images (ghost ring)
+            if (lensStrength > 0.05 && mobile < 0.5) {
+                vec2 secondaryUV = secondaryLens(gwDistortedUV, lensStrength * 0.7);
+                float ringMask = smoothstep(0.06, 0.12, length(gwDistortedUV));
+                ringMask *= smoothstep(0.25, 0.15, length(gwDistortedUV));
+                col += stars(secondaryUV, T, parallax) * ringMask * 0.15;
+            }
+
+            // Tertiary lensing for extreme cases
+            if (lensStrength > 0.3 && mobile < 0.5) {
+                vec2 tertiaryUV = tertiaryLens(gwDistortedUV, lensStrength * 0.5);
+                float innerRingMask = smoothstep(0.04, 0.08, length(gwDistortedUV));
+                innerRingMask *= smoothstep(0.15, 0.10, length(gwDistortedUV));
+                col += stars(tertiaryUV, T, parallax) * innerRingMask * 0.08;
+            }
+        } else {
+            // Normal stars without lensing
+            col = stars(gwDistortedUV, T, parallax) * 0.3;
+        }
+
+        // Main supernova with GW distortion
+        col += sampleSupernova(gwDistortedUV, T);
+
+        // Gravitational wave glow rings
+        if (bhFormation > 0.01) {
+            col += gravitationalWaveGlow(gwDistortedUV, T, bhFormation);
+        }
+
+        // Flash effects
+        col += warmWhite * flash * exp(-length(gwDistortedUV) * 1.2) * 1.5;
         col += warmWhite * screenFlash * 0.9;
     }
 
@@ -1110,12 +1461,17 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
     gl.enableVertexAttribArray(pAttr);
     gl.vertexAttribPointer(pAttr, 2, gl.FLOAT, false, 0, 0);
 
+    // Detect mobile for performance optimization
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                     (window.innerWidth < 768);
+
     // Get uniform locations
     const uR = gl.getUniformLocation(program, 'R');
     const uT = gl.getUniformLocation(program, 'T');
     const uM = gl.getUniformLocation(program, 'M');
     const uFate = gl.getUniformLocation(program, 'fate');
     const uAge = gl.getUniformLocation(program, 'age');
+    const uMobile = gl.getUniformLocation(program, 'mobile');
     const uNumBoxes = gl.getUniformLocation(program, 'numBoxes');
 
     // Get uniform locations for content box arrays
@@ -1146,12 +1502,421 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
     // Store a guaranteed non-null reference for use in closures
     const glContext = gl;
 
+    // ══════════════════════════════════════════════════════════════
+    // CANVAS SAMPLING - Adaptive glass response to WebGL content
+    // ══════════════════════════════════════════════════════════════
+    const SAMPLE_SIZE = 8;
+    const sampleBuffer = new Uint8Array(SAMPLE_SIZE * SAMPLE_SIZE * 4);
+    let sampleSkip = 0;
+    const sampleEvery = isMobile ? 8 : 4; // Sample less frequently on mobile
+
+    // Smoothed values for glass physics
+    let glassLum = 0;
+    let glassImpulse = 0;
+    let glassRGB = [180, 170, 200];
+    let lightDir = [0, -0.7];
+
+    // Supernova position tracking (for scroll-aware lighting)
+    let supernovaScreenX = 0.5;  // Normalized screen position (0-1)
+    let supernovaScreenY = 0.5;
+    let scrollAtStart = 0;
+
+    // Glass element cache
+    let glassElements: HTMLElement[] = [];
+    let lastGlassQuery = 0;
+
+    // CSS variable cache to avoid redundant DOM writes
+    const cssCache: Map<HTMLElement, Map<string, string>> = new Map();
+
+    // Utility functions
+    const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+    const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+    const smoothstep = (a: number, b: number, x: number) => {
+        const t = clamp01((x - a) / (b - a));
+        return t * t * (3 - 2 * t);
+    };
+
+    // Query glass elements (cached, refresh every 500ms)
+    function queryGlassElements(): HTMLElement[] {
+        const now = performance.now();
+        if (now - lastGlassQuery < 500 && glassElements.length > 0) {
+            return glassElements;
+        }
+        lastGlassQuery = now;
+
+        // Panel selectors - innermost visible containers that get rim effects
+        // These get both 'glass-active' (text colors) and 'glass-panel' (pseudo-elements)
+        const panelSelectors = [
+            // Collapsible: header is separate panel, inner is content panel
+            '.collapsible-header',
+            '.collapsible-inner',
+            // Cards and containers
+            'blockquote',
+            '.card',
+            '.content-card',
+            '.visualization-container',
+            '.distinction-card',
+            '.equation-box',
+            '.interactive-box',
+            '.section-header',
+            '.hero-quote',
+            '.show-quote',
+            '.show-title',
+            // ASCII interactive: header and content are separate panels
+            '.ascii-header',
+            '.ascii-content',
+            // Prose and footer
+            '.prose',
+            'footer'
+        ];
+
+        // Container selectors - parents that need text color inheritance only
+        // These only get 'glass-active' (no pseudo-elements to avoid stacking)
+        const containerSelectors = [
+            '.thought-experiment',
+            '.ascii-interactive',
+            '.collapsible',
+            '.collapsible-content',
+        ];
+
+        const elements: HTMLElement[] = [];
+        const viewportHeight = window.innerHeight;
+        const viewportWidth = window.innerWidth;
+
+        // Helper to check if element is visible and in viewport
+        const isVisibleInViewport = (el: HTMLElement): boolean => {
+            const rect = el.getBoundingClientRect();
+            const style = window.getComputedStyle(el);
+            return style.display !== 'none' &&
+                   style.visibility !== 'hidden' &&
+                   rect.height > 10 &&
+                   rect.bottom > 0 && rect.top < viewportHeight &&
+                   rect.right > 0 && rect.left < viewportWidth;
+        };
+
+        // Collect all visible elements
+        const allSelectors = [...panelSelectors, ...containerSelectors];
+        allSelectors.forEach(selector => {
+            document.querySelectorAll(selector).forEach(el => {
+                const htmlEl = el as HTMLElement;
+                if (isVisibleInViewport(htmlEl)) {
+                    elements.push(htmlEl);
+                }
+            });
+        });
+
+        // Mark which elements are panels (innermost - get pseudo-elements)
+        const panelSet = new Set<string>(panelSelectors);
+        elements.forEach(el => {
+            // Check if this element matches any panel selector
+            const isPanel = panelSelectors.some(sel => el.matches(sel));
+            if (isPanel) {
+                el.classList.add('glass-panel');
+            }
+        });
+
+        glassElements = elements;
+        return elements;
+    }
+
+    // Set CSS variable with caching to avoid redundant DOM writes
+    function setGlassVar(element: HTMLElement, name: string, value: string): void {
+        let cache = cssCache.get(element);
+        if (!cache) {
+            cache = new Map();
+            cssCache.set(element, cache);
+        }
+        if (cache.get(name) === value) return;
+        cache.set(name, value);
+        element.style.setProperty(name, value);
+    }
+
+    // Sample canvas behind glass elements and update CSS variables
+    function updateGlassAdaptive(t: number): void {
+        const elements = queryGlassElements();
+        if (elements.length === 0) return;
+
+        // Throttled canvas sampling
+        const shouldSample = (sampleSkip++ % sampleEvery) === 0;
+
+        // Calculate supernova screen position accounting for scroll
+        const scrollDelta = window.scrollY - scrollAtStart;
+        const supernovaY = supernovaScreenY - scrollDelta / window.innerHeight;
+
+        // Flash timing (mirror shader for instant response)
+        // WEBGL_PHASES.progenitor ends at 10, explosion peaks around 10
+        const flash = smoothstep(9.8, 10.0, t) * (1 - smoothstep(10.0, 11.5, t));
+        const screenFlash = smoothstep(9.9, 10.05, t) * (1 - smoothstep(10.05, 10.8, t));
+        const eventLum = clamp01(screenFlash * 1.2 + flash * 0.5);
+
+        // Direct flash boost - bypasses smoothing for immediate rim response
+        const flashBurst = smoothstep(9.85, 10.0, t) * (1 - smoothstep(10.0, 10.5, t));
+
+        // Sample first visible element (primary glass panel)
+        if (shouldSample && elements.length > 0) {
+            const primaryElement = elements[0];
+            const rect = primaryElement.getBoundingClientRect();
+
+            if (rect.width > 10 && rect.height > 10) {
+                const dpr = Math.min(isMobile ? 1.0 : 1.5, window.devicePixelRatio);
+
+                // Sample center of glass panel
+                const cx = (rect.left + rect.width * 0.5) * dpr;
+                const cy = (window.innerHeight - (rect.top + rect.height * 0.5)) * dpr;
+
+                const S = Math.min(SAMPLE_SIZE, width, height);
+                if (S >= 2) {
+                    const x0 = Math.max(0, Math.min(width - S, Math.floor(cx - S * 0.5)));
+                    const y0 = Math.max(0, Math.min(height - S, Math.floor(cy - S * 0.5)));
+
+                    try {
+                        glContext.readPixels(x0, y0, S, S, glContext.RGBA, glContext.UNSIGNED_BYTE, sampleBuffer);
+
+                        let r = 0, g = 0, b = 0;
+                        let lumL = 0, lumR = 0, lumT = 0, lumB = 0;
+                        const half = S >> 1;
+                        const n = S * S;
+
+                        for (let y = 0; y < S; y++) {
+                            for (let x = 0; x < S; x++) {
+                                const k = (y * S + x) * 4;
+                                const rr = sampleBuffer[k];
+                                const gg = sampleBuffer[k + 1];
+                                const bb = sampleBuffer[k + 2];
+
+                                r += rr; g += gg; b += bb;
+
+                                // Luminance for gradient detection
+                                const l = (0.2126 * rr + 0.7152 * gg + 0.0722 * bb) / 255;
+
+                                // Split into quadrants for light direction
+                                if (x < half) lumL += l; else lumR += l;
+                                if (y < half) lumB += l; else lumT += l;
+                            }
+                        }
+
+                        r /= n; g /= n; b /= n;
+                        glassRGB = [r, g, b];
+
+                        // Light direction: gradient pointing toward brighter region
+                        const inv = 2.0 / n;
+                        const gX = (lumR - lumL) * inv;
+                        const gY = (lumB - lumT) * inv;
+
+                        const gMag = Math.hypot(gX, gY);
+                        if (gMag > 0.01) {
+                            lightDir[0] += (gX / gMag - lightDir[0]) * 0.3;
+                            lightDir[1] += (gY / gMag - lightDir[1]) * 0.3;
+                        }
+                    } catch {
+                        // Keep last values if readPixels fails
+                    }
+                }
+            }
+        }
+
+        // Override light direction to point toward supernova
+        // Only during active phases (not progenitor or fadeout)
+        if (t > 9.5 && t < 45) {
+            elements.forEach(element => {
+                const rect = element.getBoundingClientRect();
+                const elemCenterX = (rect.left + rect.width * 0.5) / window.innerWidth;
+                const elemCenterY = (rect.top + rect.height * 0.5) / window.innerHeight;
+
+                // Direction from element toward supernova
+                const dx = supernovaScreenX - elemCenterX;
+                const dy = supernovaY - elemCenterY;
+                const mag = Math.hypot(dx, dy);
+
+                if (mag > 0.02) {
+                    // Blend toward supernova direction during flash
+                    const blendStrength = eventLum * 0.8;
+                    lightDir[0] = lerp(lightDir[0], dx / mag, blendStrength);
+                    lightDir[1] = lerp(lightDir[1], -dy / mag, blendStrength); // Flip for CSS coords
+                }
+            });
+        }
+
+        // Combine sampled luminance with event luminance
+        const sampledLum = (0.2126 * glassRGB[0] + 0.7152 * glassRGB[1] + 0.0722 * glassRGB[2]) / 255;
+        const targetLum = clamp01(sampledLum * 0.5 + eventLum);
+
+        // Smooth the luminance
+        const delta = targetLum - glassLum;
+        glassLum += delta * 0.12;
+
+        // Impulse tracks rate of change + direct flash contribution
+        glassImpulse += (Math.abs(delta) - glassImpulse) * 0.15;
+        glassImpulse = Math.max(glassImpulse, flashBurst * 0.8);
+        const imp = clamp01(glassImpulse * 4 + flashBurst * 0.5);
+
+        // ─── BLACK HOLE GRAVITATIONAL EFFECTS ───
+        let bhStrength = 0;
+        let bhRedshift = 0;
+        let gwIntensity = 0;
+        let gwPhase = 0;
+
+        if (config.fate > 0.5 && t > 12) {
+            // BH forms at T=16, strength builds
+            bhStrength = smoothstep(16, 36, t);
+            bhStrength *= 1.0 + 0.1 * Math.sin(t * 0.15);
+
+            // Redshift increases with proximity
+            bhRedshift = bhStrength * (0.5 + glassLum * 0.5);
+
+            // Light direction shifts toward BH (center/up)
+            const bhLightInfluence = bhStrength * 0.6;
+            lightDir[0] += (0 - lightDir[0]) * bhLightInfluence * 0.1;
+            lightDir[1] += (-0.8 - lightDir[1]) * bhLightInfluence * 0.1;
+
+            // ─── GRAVITATIONAL WAVES ───
+            const gwStart = 12;
+            const gwEnd = 28;
+            const gwElapsed = t - gwStart;
+
+            if (gwElapsed > 0 && gwElapsed < (gwEnd - gwStart)) {
+                const waveCount = 5;
+                let totalIntensity = 0;
+
+                for (let i = 0; i < waveCount; i++) {
+                    const waveDelay = i * 1.8;
+                    const waveAge = gwElapsed - waveDelay;
+
+                    if (waveAge > 0 && waveAge < 8) {
+                        const wavePeak = 1.5;
+                        const waveDecay = 0.4 + i * 0.1;
+
+                        let intensity: number;
+                        if (waveAge < wavePeak) {
+                            intensity = smoothstep(0, wavePeak, waveAge);
+                        } else {
+                            intensity = Math.exp(-(waveAge - wavePeak) * waveDecay);
+                        }
+
+                        intensity *= (1 - i * 0.15);
+                        totalIntensity += intensity;
+                    }
+                }
+
+                gwIntensity = clamp01(totalIntensity * 0.5) * smoothstep(12, 16, t);
+                gwPhase = (Math.sin(gwElapsed * 0.8) * 0.5 + 0.5) * gwIntensity;
+            }
+        }
+
+        // ─── ADAPTIVE TEXT COLORS ───
+        // Dark bg → light text, Bright bg → dark text (like stardust)
+        const tMix = smoothstep(0.25, 0.7, glassLum);
+
+        const mainR = Math.round(lerp(255, 20, tMix));
+        const mainG = Math.round(lerp(255, 18, tMix));
+        const mainB = Math.round(lerp(255, 25, tMix));
+        const mainA = lerp(0.9, 0.95, tMix);
+
+        const bodyR = Math.round(lerp(255, 35, tMix));
+        const bodyG = Math.round(lerp(255, 32, tMix));
+        const bodyB = Math.round(lerp(255, 42, tMix));
+        const bodyA = lerp(0.8, 0.9, tMix);
+
+        const muteR = Math.round(lerp(200, 70, tMix));
+        const muteG = Math.round(lerp(195, 68, tMix));
+        const muteB = Math.round(lerp(210, 80, tMix));
+        const muteA = lerp(0.7, 0.8, tMix);
+
+        // ─── DIRECTIONAL SHADOWS ───
+        // Shadow casts AWAY from light source
+        const shadowMag = 1 + glassLum * 4 + imp * 3;
+        const sx = -lightDir[0] * shadowMag;
+        const sy = -lightDir[1] * shadowMag;
+        const shadowBlur = 6 + glassLum * 8 + imp * 4;
+        const shadowAlpha = 0.25 + glassLum * 0.4 + imp * 0.15;
+
+        // ─── DYNAMIC BORDER ───
+        // Border glows with sampled color during flash
+        const borderR = Math.round(200 + glassLum * 55);
+        const borderG = Math.round(195 + glassLum * 60);
+        const borderB = Math.round(215 + glassLum * 40);
+        const borderA = 0.08 + glassLum * 0.4;
+
+        // ─── UPDATE CSS VARIABLES ON ALL GLASS ELEMENTS ───
+        elements.forEach(element => {
+            // Add glass-active class for CSS effects
+            element.classList.add('glass-active');
+
+            // Core values
+            setGlassVar(element, '--lum', glassLum.toFixed(3));
+            setGlassVar(element, '--impulse', imp.toFixed(3));
+
+            // Sampled tint color
+            setGlassVar(element, '--tint-r', Math.round(glassRGB[0]).toString());
+            setGlassVar(element, '--tint-g', Math.round(glassRGB[1]).toString());
+            setGlassVar(element, '--tint-b', Math.round(glassRGB[2]).toString());
+
+            // Light direction
+            setGlassVar(element, '--light-x', lightDir[0].toFixed(3));
+            setGlassVar(element, '--light-y', lightDir[1].toFixed(3));
+
+            // Adaptive text colors (text darkens on bright background)
+            setGlassVar(element, '--text-main', `rgba(${mainR}, ${mainG}, ${mainB}, ${mainA.toFixed(2)})`);
+            setGlassVar(element, '--text-body', `rgba(${bodyR}, ${bodyG}, ${bodyB}, ${bodyA.toFixed(2)})`);
+            setGlassVar(element, '--text-mute', `rgba(${muteR}, ${muteG}, ${muteB}, ${muteA.toFixed(2)})`);
+
+            // Directional shadows
+            setGlassVar(element, '--shadow-x', `${sx.toFixed(1)}px`);
+            setGlassVar(element, '--shadow-y', `${sy.toFixed(1)}px`);
+            setGlassVar(element, '--shadow-blur', `${shadowBlur.toFixed(1)}px`);
+            setGlassVar(element, '--shadow-a', shadowAlpha.toFixed(3));
+
+            // Dynamic border
+            setGlassVar(element, '--border-color', `rgba(${borderR}, ${borderG}, ${borderB}, ${borderA.toFixed(2)})`);
+
+            // Black hole effects
+            setGlassVar(element, '--bh-strength', bhStrength.toFixed(4));
+            setGlassVar(element, '--bh-redshift', bhRedshift.toFixed(4));
+            setGlassVar(element, '--gw-intensity', gwIntensity.toFixed(4));
+            setGlassVar(element, '--gw-phase', gwPhase.toFixed(4));
+        });
+    }
+
+    // Clear glass CSS variables when effect ends
+    function clearGlassEffects(): void {
+        glassElements.forEach(element => {
+            // Remove glass classes
+            element.classList.remove('glass-active');
+            element.classList.remove('glass-panel');
+
+            // Reset all CSS variables
+            element.style.removeProperty('--lum');
+            element.style.removeProperty('--impulse');
+            element.style.removeProperty('--tint-r');
+            element.style.removeProperty('--tint-g');
+            element.style.removeProperty('--tint-b');
+            element.style.removeProperty('--light-x');
+            element.style.removeProperty('--light-y');
+            element.style.removeProperty('--text-main');
+            element.style.removeProperty('--text-body');
+            element.style.removeProperty('--text-mute');
+            element.style.removeProperty('--shadow-x');
+            element.style.removeProperty('--shadow-y');
+            element.style.removeProperty('--shadow-blur');
+            element.style.removeProperty('--shadow-a');
+            element.style.removeProperty('--border-color');
+            element.style.removeProperty('--bh-strength');
+            element.style.removeProperty('--bh-redshift');
+            element.style.removeProperty('--gw-intensity');
+            element.style.removeProperty('--gw-phase');
+        });
+        cssCache.clear();
+        glassElements = [];
+    }
+
     function updateContentBoxes(boxes: ContentBox[]) {
         contentBoxes = boxes.slice(0, MAX_CONTENT_BOXES);
     }
 
     function resize() {
-        const dpr = Math.min(1.5, window.devicePixelRatio);
+        // Lower DPR cap on mobile for better performance
+        const maxDpr = isMobile ? 1.0 : 1.5;
+        const dpr = Math.min(maxDpr, window.devicePixelRatio);
         width = Math.floor(window.innerWidth * dpr);
         height = Math.floor(window.innerHeight * dpr);
         canvas.width = width;
@@ -1227,6 +1992,7 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         glContext.uniform2f(uM, smoothMouse[0], smoothMouse[1]);
         glContext.uniform1f(uFate, config.fate);
         glContext.uniform1f(uAge, 0);
+        glContext.uniform1f(uMobile, isMobile ? 1.0 : 0.0);
         glContext.uniform1i(uNumBoxes, contentBoxes.length);
 
         // Update content box uniforms (with three-tier system)
@@ -1255,6 +2021,9 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         glContext.clear(glContext.COLOR_BUFFER_BIT);
         glContext.drawArrays(glContext.TRIANGLES, 0, 3);
 
+        // Update glass elements with adaptive lighting from canvas sampling
+        updateGlassAdaptive(t);
+
         animationId = requestAnimationFrame(render);
     }
 
@@ -1265,6 +2034,18 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         startTime = performance.now();
         lastPhase = '';
         boxUpdateCounter = 0;
+
+        // Initialize scroll-aware supernova position
+        scrollAtStart = window.scrollY;
+        // Supernova spawns at center of viewport
+        supernovaScreenX = 0.5;
+        supernovaScreenY = 0.5;
+
+        // Reset glass state
+        glassLum = 0;
+        glassImpulse = 0;
+        glassRGB = [180, 170, 200];
+        lightDir = [0, -0.7];
 
         resize();
         contentBoxes = queryContentBoxes();
@@ -1292,6 +2073,9 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         window.removeEventListener('resize', resize);
         window.removeEventListener('mousemove', handleMouseMove);
         window.removeEventListener('scroll', handleScroll);
+
+        // Clean up glass effects
+        clearGlassEffects();
 
         // Fade out
         canvas.style.opacity = '0';

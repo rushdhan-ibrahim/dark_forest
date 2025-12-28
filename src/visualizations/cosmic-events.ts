@@ -2922,7 +2922,7 @@ const SUPERNOVA_MODE: 'webgl' | 'artistic' | 'enhanced' = 'webgl';
 
 // Click-to-trigger testing mode
 // When true: click anywhere to trigger supernova, alternates between neutron star and black hole
-const SUPERNOVA_CLICK_TRIGGER = false;
+const SUPERNOVA_CLICK_TRIGGER = true;
 let clickTriggerNextFate = 0;  // 0 = neutron star, 1 = black hole (alternates)
 let clickTriggerRunning = false;
 
