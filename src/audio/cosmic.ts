@@ -335,48 +335,65 @@ export function updateCosmicAudio(t: number, fate: number): void {
     const pulseRate = 0.5 + smoothstep(5, 9.5, t) * 1.5;
     n.pulseLFO!.frequency.value = pulseRate;
 
-    // Tension rises in final seconds
+    // Tension rises in final seconds - warm swell, not harsh static
     if (t > 8) {
       const tension = smoothstep(8, 10, t);
-      // Add high-frequency noise
-      n.noiseFilter!.frequency.value = 800 + tension * 3000;
-      setParam(n.noiseGain!.gain, tension * 0.15, 0.1);
+
+      // Drone swells warmly instead of harsh noise
+      const droneSwell = 0.12 + tension * 0.08;
+      setParam(n.cosmicDroneGain!.gain, droneSwell, 0.2);
+
+      // Choir begins to whisper - ethereal buildup
+      setParam(n.choirGain!.gain, tension * 0.025, 0.3);
+
+      // Very subtle low rumble - felt more than heard
+      n.noiseFilter!.frequency.value = 50 + tension * 30; // Stay very low (50-80Hz)
+      n.noiseFilter!.Q.value = 3; // Resonant warmth
+      setParam(n.noiseGain!.gain, tension * 0.04, 0.2);
     }
   }
 
   // ─── FLASH PHASE (10-11s) ───
+  // The universe exhales - warm, deep, awe-inspiring
   if (t >= 10 && t < 11) {
     const flashProgress = (t - 10);
+    const flashEnvelope = Math.sin(flashProgress * Math.PI); // Smooth arc
 
-    // Noise burst
-    n.noiseFilter!.frequency.value = 500 + flashProgress * 4000;
-    const noiseLevel = 0.5 * flashProgress * (1 - flashProgress * 0.5);
-    setParam(n.noiseGain!.gain, noiseLevel, 0.02);
+    // Deep cosmic drone swells - the sound of creation
+    const droneFlash = 0.22 * flashEnvelope;
+    setParam(n.cosmicDroneGain!.gain, droneFlash, 0.05);
 
-    // Choir swells
-    const choirLevel = 0.12 * Math.sin(flashProgress * Math.PI);
-    setParam(n.choirGain!.gain, choirLevel, 0.05);
+    // Choir rises like distant angels - ethereal, not loud
+    const choirLevel = 0.06 * flashEnvelope;
+    setParam(n.choirGain!.gain, choirLevel, 0.08);
 
-    // Drone drops
-    setParam(n.cosmicDroneGain!.gain, 0.04, 0.1);
-    setParam(n.stellarHeartGain!.gain, 0.02, 0.1);
+    // Subtle sub-bass rumble - felt in the chest, not heard in the ears
+    n.noiseFilter!.frequency.value = 35 + flashProgress * 25; // 35-60Hz only
+    n.noiseFilter!.Q.value = 4; // Very resonant, warm
+    const rumbleLevel = 0.06 * flashEnvelope;
+    setParam(n.noiseGain!.gain, rumbleLevel, 0.05);
+
+    // Stellar heart fades as it collapses
+    setParam(n.stellarHeartGain!.gain, 0.02 * (1 - flashProgress), 0.1);
   }
 
   // ─── POST-FLASH TRANSITION (11-16s) ───
+  // Rumble fades into the remnant phase
   if (t >= 11 && t < 16) {
     const transProgress = smoothstep(11, 16, t);
 
-    // Noise fades
-    const noiseFade = 0.3 * (1 - transProgress);
-    n.noiseFilter!.frequency.value = 2000 - transProgress * 1500;
-    setParam(n.noiseGain!.gain, noiseFade, 0.1);
+    // Rumble fades out smoothly, staying in low frequencies
+    const rumbleFade = 0.08 * (1 - transProgress);
+    n.noiseFilter!.frequency.value = 60 + (1 - transProgress) * 40; // Stay low
+    n.noiseFilter!.Q.value = 1.5;
+    setParam(n.noiseGain!.gain, rumbleFade, 0.2);
 
-    // Choir lingers then fades
-    const choirFade = 0.08 * (1 - transProgress * 0.8);
-    setParam(n.choirGain!.gain, choirFade, 0.2);
+    // Choir fades to whisper
+    const choirFade = 0.03 * (1 - transProgress * 0.9);
+    setParam(n.choirGain!.gain, choirFade, 0.3);
 
-    // Drone settles
-    setParam(n.cosmicDroneGain!.gain, 0.06 * (1 - transProgress * 0.5), 0.3);
+    // Drone settles to ambient level
+    setParam(n.cosmicDroneGain!.gain, 0.08 * (1 - transProgress * 0.6), 0.3);
   }
 
   // ─── REMNANT PHASE (16+) ───
@@ -410,13 +427,30 @@ export function updateCosmicAudio(t: number, fate: number): void {
       const bhForm = smoothstep(16, 24, t);
       const bhFull = smoothstep(20, 28, t);
 
-      // BH drone rises
-      const bhLevel = 0.15 * bhForm * ageFade;
+      // ═══ SOUND SUCKING EFFECT ═══
+      // As black hole forms, it "sucks" all other sounds into silence
+      // Only the BH drone remains, creating an eerie void
+      const suckProgress = smoothstep(16, 22, t);
+
+      // Cosmic drone gets sucked into silence
+      setParam(n.cosmicDroneGain!.gain, 0.04 * ageFade * (1 - suckProgress * 0.9), 0.5);
+
+      // Choir gets completely sucked out
+      setParam(n.choirGain!.gain, 0.02 * ageFade * (1 - suckProgress), 0.3);
+
+      // Any remaining noise gets sucked out
+      setParam(n.noiseGain!.gain, 0, 0.3);
+
+      // Silence the pulsar (shouldn't be playing anyway, but ensure it)
+      setParam(n.pulsarGain!.gain, 0, 0.3);
+
+      // BH drone rises - this is the only sound that grows
+      const bhLevel = 0.18 * bhForm * ageFade;
       setParam(n.bhDroneGain!.gain, bhLevel, 0.3);
       n.bhFilter!.frequency.value = 50 + bhFull * 60;
 
-      // Accretion disk rumble
-      const accLevel = 0.08 * bhFull * ageFade;
+      // Accretion disk rumble - subtle
+      const accLevel = 0.06 * bhFull * ageFade;
       setParam(n.accretionGain!.gain, accLevel, 0.2);
 
       // Gravitational wave chirp (T=12-18)
@@ -430,11 +464,11 @@ export function updateCosmicAudio(t: number, fate: number): void {
           const chirpFreq = 25 + gwProgress * gwProgress * 150;
           n.chirpOsc!.frequency.value = Math.min(180, chirpFreq);
 
-          const chirpAmp = 0.08 * Math.sin(gwProgress * Math.PI);
+          const chirpAmp = 0.06 * Math.sin(gwProgress * Math.PI);
           setParam(n.chirpGain!.gain, chirpAmp * bhForm, 0.02);
 
-          // GW background
-          const gwAmp = 0.04 * (0.5 + gwProgress * 0.5) * bhForm;
+          // GW background - reduced
+          const gwAmp = 0.03 * (0.5 + gwProgress * 0.5) * bhForm;
           setParam(n.gwGain!.gain, gwAmp, 0.1);
         } else {
           // Ringdown
@@ -442,15 +476,36 @@ export function updateCosmicAudio(t: number, fate: number): void {
           const ringdownFreq = 180 * Math.exp(-ringdown * 0.25);
           n.chirpOsc!.frequency.value = Math.max(25, ringdownFreq);
 
-          const ringdownAmp = 0.06 * Math.exp(-ringdown * 0.3);
+          const ringdownAmp = 0.04 * Math.exp(-ringdown * 0.3);
           setParam(n.chirpGain!.gain, ringdownAmp, 0.1);
-          setParam(n.gwGain!.gain, 0.02 * Math.exp(-ringdown * 0.2), 0.1);
+          setParam(n.gwGain!.gain, 0.015 * Math.exp(-ringdown * 0.2), 0.1);
         }
       } else if (t >= 22) {
         // GW fades to background
         setParam(n.chirpGain!.gain, 0, 0.5);
-        setParam(n.gwGain!.gain, 0.01 * ageFade, 0.3);
+        setParam(n.gwGain!.gain, 0.008 * ageFade, 0.3);
       }
+    }
+
+    // ═══ FADEOUT PHASE (24-28s) ═══
+    // Everything gracefully fades to silence
+    if (t >= 24) {
+      const fadeProgress = smoothstep(24, 28, t);
+      const fadeMultiplier = 1 - fadeProgress;
+
+      // Fade all remaining sounds
+      if (fate < 0.5) {
+        // Neutron star fadeout
+        setParam(n.pulsarGain!.gain, n.pulsarGain!.gain.value * fadeMultiplier, 0.2);
+      } else {
+        // Black hole fadeout
+        setParam(n.bhDroneGain!.gain, n.bhDroneGain!.gain.value * fadeMultiplier, 0.2);
+        setParam(n.accretionGain!.gain, n.accretionGain!.gain.value * fadeMultiplier, 0.2);
+      }
+
+      // Fade any remaining ambient
+      setParam(n.cosmicDroneGain!.gain, n.cosmicDroneGain!.gain.value * fadeMultiplier, 0.2);
+      setParam(n.choirGain!.gain, n.choirGain!.gain.value * fadeMultiplier, 0.2);
     }
   }
 }

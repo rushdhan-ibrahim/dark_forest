@@ -2923,8 +2923,15 @@ const SUPERNOVA_MODE: 'webgl' | 'artistic' | 'enhanced' = 'webgl';
 // Click-to-trigger testing mode
 // When true: click anywhere to trigger supernova, alternates between neutron star and black hole
 const SUPERNOVA_CLICK_TRIGGER = true;
+const TAPS_REQUIRED = 3;  // Number of taps required to trigger cosmic event
+const TAP_TIMEOUT = 2000;  // Reset tap count after 2 seconds of inactivity
 let clickTriggerNextFate = 0;  // 0 = neutron star, 1 = black hole (alternates)
 let clickTriggerRunning = false;
+let lastCosmicEventTime = 0;  // Timestamp of last cosmic event completion
+const COSMIC_EVENT_COOLDOWN = 72000;  // 1.2 minutes minimum between events
+let tapCount = 0;
+let tapTimer: number | null = null;
+let tapIndicator: HTMLElement | null = null;
 
 // ============================================================================
 // WEBGL SUPERNOVA
@@ -2979,6 +2986,18 @@ function createWebGLSupernovaEvent(forceFate?: number, onCompleteCallback?: () =
 }
 
 function triggerRandomEvent(): void {
+    // Respect cooldown period after any cosmic event
+    const timeSinceLastEvent = Date.now() - lastCosmicEventTime;
+    if (timeSinceLastEvent < COSMIC_EVENT_COOLDOWN) {
+        console.log(`[Cosmic] Skipping random event - cooldown (${Math.round((COSMIC_EVENT_COOLDOWN - timeSinceLastEvent) / 1000)}s remaining)`);
+        return;
+    }
+
+    // Don't trigger if a manual event is running
+    if (clickTriggerRunning) {
+        return;
+    }
+
     const eventType = selectRandomEvent();
 
     switch (eventType) {
@@ -3004,16 +3023,157 @@ function triggerRandomEvent(): void {
     }
 }
 
+// ============================================================================
+// TAP INDICATOR UI
+// Subtle visual feedback for triple-tap cosmic event trigger
+// ============================================================================
+
+function createTapIndicator(): void {
+    if (tapIndicator) return;
+
+    tapIndicator = document.createElement('div');
+    tapIndicator.className = 'cosmic-tap-indicator';
+    const hintText = isMobile ? 'tap 3×' : 'click 3×';
+    tapIndicator.innerHTML = `
+        <span class="tap-dots">
+            <span class="tap-dot"></span>
+            <span class="tap-dot"></span>
+            <span class="tap-dot"></span>
+        </span>
+        <span class="tap-hint">${hintText}</span>
+    `;
+
+    // Inject styles
+    const style = document.createElement('style');
+    style.textContent = `
+        .cosmic-tap-indicator {
+            position: fixed;
+            bottom: max(20px, env(safe-area-inset-bottom, 20px));
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: rgba(10, 8, 20, 0.6);
+            border: 1px solid rgba(120, 100, 150, 0.2);
+            border-radius: 20px;
+            z-index: 90;
+            opacity: 0.5;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            pointer-events: none;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        .cosmic-tap-indicator:hover {
+            opacity: 0.7;
+        }
+
+        .cosmic-tap-indicator.active {
+            opacity: 0.85;
+            transform: translateX(-50%) scale(1.05);
+        }
+
+        .cosmic-tap-indicator.triggered {
+            opacity: 1;
+            animation: tapFlash 0.5s ease-out;
+        }
+
+        @keyframes tapFlash {
+            0% {
+                transform: translateX(-50%) scale(1.15);
+                border-color: rgba(200, 180, 255, 0.6);
+                box-shadow: 0 0 20px rgba(180, 160, 220, 0.4);
+            }
+            100% {
+                transform: translateX(-50%) scale(1);
+                border-color: rgba(120, 100, 150, 0.2);
+                box-shadow: none;
+            }
+        }
+
+        .tap-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .tap-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: rgba(140, 120, 170, 0.3);
+            border: 1px solid rgba(140, 120, 170, 0.4);
+            transition: all 0.2s ease;
+        }
+
+        .tap-dot.lit {
+            background: rgba(200, 180, 255, 0.8);
+            border-color: rgba(200, 180, 255, 0.9);
+            box-shadow: 0 0 6px rgba(180, 160, 220, 0.6);
+        }
+
+        .tap-hint {
+            font-family: 'JetBrains Mono', 'Spectral', serif;
+            font-size: 0.6rem;
+            letter-spacing: 0.05em;
+            color: rgba(160, 140, 190, 0.6);
+            text-transform: lowercase;
+        }
+
+        /* Hide on very small screens to avoid clutter */
+        @media (max-height: 500px) {
+            .cosmic-tap-indicator {
+                display: none;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+    document.body.appendChild(tapIndicator);
+}
+
+function updateTapIndicator(): void {
+    if (!tapIndicator) return;
+
+    const dots = tapIndicator.querySelectorAll('.tap-dot');
+    dots.forEach((dot, i) => {
+        if (i < tapCount) {
+            dot.classList.add('lit');
+        } else {
+            dot.classList.remove('lit');
+        }
+    });
+
+    // Add active class when tapping
+    if (tapCount > 0) {
+        tapIndicator.classList.add('active');
+    } else {
+        tapIndicator.classList.remove('active');
+    }
+}
+
+function showTapActivation(): void {
+    if (!tapIndicator) return;
+
+    tapIndicator.classList.add('triggered');
+    setTimeout(() => {
+        tapIndicator?.classList.remove('triggered');
+    }, 500);
+}
+
 export function initCosmicEvents(): void {
     // Respect reduced motion preference
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         return;
     }
 
-    // Click-to-trigger mode: click anywhere to trigger supernova
+    // Click-to-trigger mode: triple-tap anywhere to trigger supernova
     if (SUPERNOVA_CLICK_TRIGGER) {
-        console.log('[Supernova Test] Click-to-trigger mode active');
-        console.log('[Supernova Test] Click anywhere to trigger supernova (alternates: neutron star ↔ black hole)');
+        console.log('[Supernova] Triple-tap mode active');
+        console.log('[Supernova] Tap 3x anywhere to trigger cosmic event');
+
+        // Create subtle UI indicator
+        createTapIndicator();
 
         document.addEventListener('click', (e) => {
             // Ignore clicks on interactive elements
@@ -3024,36 +3184,63 @@ export function initCosmicEvents(): void {
 
             // Don't trigger if one is already running
             if (clickTriggerRunning) {
-                console.log('[Supernova Test] Supernova already in progress, ignoring click');
                 return;
             }
 
-            clickTriggerRunning = true;
-            const fateType = clickTriggerNextFate === 0 ? 'Neutron Star' : 'Black Hole';
-            console.log(`[Supernova Test] Click detected! Triggering ${fateType}`);
+            // Increment tap count
+            tapCount++;
+            updateTapIndicator();
 
-            createWebGLSupernovaEvent(clickTriggerNextFate, () => {
-                clickTriggerRunning = false;
-                // Alternate for next click
-                clickTriggerNextFate = clickTriggerNextFate === 0 ? 1 : 0;
-                const nextType = clickTriggerNextFate === 0 ? 'Neutron Star' : 'Black Hole';
-                console.log(`[Supernova Test] Complete! Next click will trigger: ${nextType}`);
-            });
+            // Reset timer
+            if (tapTimer !== null) {
+                window.clearTimeout(tapTimer);
+            }
+            tapTimer = window.setTimeout(() => {
+                tapCount = 0;
+                updateTapIndicator();
+            }, TAP_TIMEOUT);
+
+            // Check if we've reached the required taps
+            if (tapCount >= TAPS_REQUIRED) {
+                // Reset tap state
+                tapCount = 0;
+                if (tapTimer !== null) {
+                    window.clearTimeout(tapTimer);
+                    tapTimer = null;
+                }
+                updateTapIndicator();
+
+                // Trigger cosmic event
+                clickTriggerRunning = true;
+                const fateType = clickTriggerNextFate === 0 ? 'Neutron Star' : 'Black Hole';
+                console.log(`[Supernova] Triggering ${fateType}`);
+
+                // Show brief activation flash on indicator
+                showTapActivation();
+
+                createWebGLSupernovaEvent(clickTriggerNextFate, () => {
+                    clickTriggerRunning = false;
+                    lastCosmicEventTime = Date.now();  // Record when event finished
+                    // Alternate for next trigger
+                    clickTriggerNextFate = clickTriggerNextFate === 0 ? 1 : 0;
+                });
+            }
         });
 
-        return; // Don't run normal cosmic events in test mode
+        // Continue to also allow random events (less frequently)
     }
 
     const TESTING_MODE = false;
 
+    // Random events happen infrequently - rare cosmic occurrences
     const baseInterval = TESTING_MODE
         ? 8000  // 8 seconds for testing
-        : (isMobile ? 60000 : 40000);  // 40-60 seconds for production
+        : (isMobile ? 180000 : 120000);  // 2-3 minutes between checks
 
-    const triggerProbability = TESTING_MODE ? 0.9 : 0.3;  // 90% vs 30%
+    const triggerProbability = TESTING_MODE ? 0.9 : 0.15;  // 15% chance when checked
     const initialDelay = TESTING_MODE
         ? 3000 + Math.random() * 2000   // 3-5 seconds for testing
-        : 15000 + Math.random() * 15000; // 15-30 seconds for production
+        : 45000 + Math.random() * 30000; // 45-75 seconds before first possible event
 
     // Initial delay before first event
     setTimeout(() => {

@@ -1415,6 +1415,12 @@ void main() {
     alpha = max(alpha, glass.fresnel * 0.8);
     alpha = max(alpha, glass.edgeBevel * 0.9);
 
+    // ═══ GRACEFUL FADEOUT (T 24-28) ═══
+    // Smoothly fade everything to black during fadeout phase
+    float fadeout = 1.0 - smoothstep(24.0, 28.0, T);
+    col *= fadeout;
+    alpha *= fadeout;
+
     // Tone mapping
     col = col / (0.8 + col);
     col = pow(col, vec3(0.42));

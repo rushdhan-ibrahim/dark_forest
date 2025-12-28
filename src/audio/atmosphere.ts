@@ -96,10 +96,10 @@ export function updateScrollAudio(): void {
     transitionAtmosphere(newSection);
   }
 
-  // Continuous adjustments based on scroll
+  // Continuous adjustments based on scroll (kept subtle)
   if (audioLayers.noise && audioLayers.noise.filter) {
-    // Noise becomes more present as we scroll deeper
-    const noiseVol = 0.01 + scrollProgress * 0.015;
+    // Very subtle increase with scroll - barely noticeable
+    const noiseVol = 0.004 + scrollProgress * 0.004;  // Max 0.008
     audioLayers.noise.gain.gain.linearRampToValueAtTime(noiseVol, audioCtx.currentTime + 0.5);
   }
 }
@@ -181,8 +181,7 @@ export function transitionAtmosphere(section: string): void {
 
 /**
  * Apply audio effects based on scroll velocity
- * Fast scrolling: more rhythmic, higher frequencies
- * Slow reading: ambient, contemplative
+ * Kept very subtle - the sound should never be disruptive
  */
 function applyVelocityEffects(velocity: number): void {
   const audioCtx = getAudioContext();
@@ -194,32 +193,32 @@ function applyVelocityEffects(velocity: number): void {
   // Normalize velocity (0-1 range, capped at 2000px/s as "fast")
   const normalizedVelocity = Math.min(1, velocity / 2000);
 
-  // Fast scrolling: noise filter opens up, becomes more present
+  // Fast scrolling: very subtle filter change (stays warm)
   if (audioLayers.noise.filter) {
-    const baseFilterFreq = 800;
-    const velocityBoost = normalizedVelocity * 800;
+    const baseFilterFreq = 300;
+    const velocityBoost = normalizedVelocity * 150;  // Max 450Hz - still warm
     audioLayers.noise.filter.frequency.linearRampToValueAtTime(
       baseFilterFreq + velocityBoost,
-      now + 0.3
+      now + 0.5
     );
   }
 
-  // Fast scrolling: slightly increase noise volume
+  // Fast scrolling: minimal volume increase
   if (audioLayers.noise.gain) {
-    const baseVol = 0.015;
-    const velocityBoost = normalizedVelocity * 0.01;
+    const baseVol = 0.005;
+    const velocityBoost = normalizedVelocity * 0.003;  // Max 0.008
     audioLayers.noise.gain.gain.linearRampToValueAtTime(
       baseVol + velocityBoost,
-      now + 0.3
+      now + 0.5
     );
   }
 
-  // Fast scrolling: pad voices become slightly brighter
+  // Fast scrolling: pad voices become slightly brighter (this is fine)
   if (audioLayers.pad && audioLayers.pad.voices) {
     audioLayers.pad.voices.forEach(voice => {
       if (voice.filter) {
         const baseFreq = 500;
-        const velocityBoost = normalizedVelocity * 300;
+        const velocityBoost = normalizedVelocity * 200;
         voice.filter.frequency.linearRampToValueAtTime(
           baseFreq + velocityBoost,
           now + 0.5
@@ -250,9 +249,9 @@ function fadeAudioForPause(): void {
     audioLayers.pad.gain.gain.linearRampToValueAtTime(0.03, now + fadeTime);
   }
 
-  // Noise becomes very quiet
+  // Noise becomes nearly silent
   if (audioLayers.noise) {
-    audioLayers.noise.gain.gain.linearRampToValueAtTime(0.005, now + fadeTime);
+    audioLayers.noise.gain.gain.linearRampToValueAtTime(0.002, now + fadeTime);
   }
 }
 
@@ -277,8 +276,8 @@ export function resumeAudioFromPause(): void {
     audioLayers.pad.gain.gain.linearRampToValueAtTime(0.08, now + fadeTime);
   }
 
-  // Restore noise
+  // Restore noise (to subtle level)
   if (audioLayers.noise) {
-    audioLayers.noise.gain.gain.linearRampToValueAtTime(0.015, now + fadeTime);
+    audioLayers.noise.gain.gain.linearRampToValueAtTime(0.006, now + fadeTime);
   }
 }

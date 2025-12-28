@@ -186,7 +186,8 @@ export function swellVoice(gainNode: GainNode, index: number): void {
 }
 
 /**
- * LAYER 3: Cosmic Static
+ * LAYER 3: Cosmic Static (subtle breath of the void)
+ * Kept very quiet and low-frequency to avoid being disruptive
  */
 export function createNoiseLayer(): void {
   const audioCtx = getAudioContext();
@@ -194,7 +195,7 @@ export function createNoiseLayer(): void {
   if (!audioCtx || !masterGain) return;
 
   const noiseGain = audioCtx.createGain();
-  noiseGain.gain.value = 0.015;
+  noiseGain.gain.value = 0.006;  // Much quieter base level
   noiseGain.connect(masterGain);
 
   const bufferSize = audioCtx.sampleRate * 4;
@@ -209,10 +210,11 @@ export function createNoiseLayer(): void {
   noise.buffer = buffer;
   noise.loop = true;
 
+  // Lower frequency filter for warmer, less harsh static
   const filter = audioCtx.createBiquadFilter();
-  filter.type = 'bandpass';
-  filter.frequency.value = 800;
-  filter.Q.value = 0.8;
+  filter.type = 'lowpass';  // Changed to lowpass for softer sound
+  filter.frequency.value = 400;  // Much lower - warm rumble instead of hiss
+  filter.Q.value = 0.5;  // Less resonant
 
   noise.connect(filter);
   filter.connect(noiseGain);
@@ -221,12 +223,12 @@ export function createNoiseLayer(): void {
   const noiseLayer: NoiseLayer = { source: noise, gain: noiseGain, filter };
   setAudioLayer('noise', noiseLayer);
 
-  // Sweep the filter
+  // Sweep the filter (within lower range)
   sweepNoiseFilter(filter);
 }
 
 /**
- * Sweep the noise filter frequency
+ * Sweep the noise filter frequency (kept in warm, low range)
  */
 export function sweepNoiseFilter(filter: BiquadFilterNode): void {
   const audioCtx = getAudioContext();
@@ -237,9 +239,10 @@ export function sweepNoiseFilter(filter: BiquadFilterNode): void {
 
   if (!audioCtx) return;
 
-  const newFreq = 400 + Math.random() * 1400;
-  filter.frequency.exponentialRampToValueAtTime(newFreq, audioCtx.currentTime + 12);
-  setTimeout(() => sweepNoiseFilter(filter), 12000);
+  // Keep filter in warm low-frequency range (200-500Hz)
+  const newFreq = 200 + Math.random() * 300;
+  filter.frequency.exponentialRampToValueAtTime(newFreq, audioCtx.currentTime + 15);
+  setTimeout(() => sweepNoiseFilter(filter), 15000);
 }
 
 /**
