@@ -17,6 +17,7 @@ uniform vec2 M;
 uniform float fate;
 uniform float age;
 uniform float mobile;  // 1.0 on mobile, 0.0 on desktop
+uniform vec2 uDiskPrecess;  // Pre-computed (cos, sin) for disk precession
 
 // Content box occlusion uniforms
 // Each box is: vec4(x, y, width, height) in normalized screen coords (0-1)
@@ -930,16 +931,16 @@ vec3 blackhole(vec2 p, float t) {
 
     // Photon ring - brighter shimmer
     float ringW = rH * 0.15;
-    float ring = exp(-pow((r - rPhoton) / ringW, 2.0));
+    float ringDelta = (r - rPhoton) / ringW;
+    float ring = exp(-ringDelta * ringDelta);
     float shimmer = 0.6 + 0.4 * sin(ang * 6.0 + t * 2.5);
     shimmer *= 0.8 + 0.2 * sin(ang * 13.0 - t * 1.8);
     col += mix(dust, rose, 0.4) * ring * shimmer * form * 0.7;
 
     // Accretion disk with Doppler
     float diskTilt = 0.38;
-    float diskPrecess = 0.5 + 0.08 * sin(t * 0.12);
-
-    float ca = cos(diskPrecess), sa = sin(diskPrecess);
+    // diskPrecess cos/sin pre-computed in JS and passed as uniform
+    float ca = uDiskPrecess.x, sa = uDiskPrecess.y;
     vec2 diskP = vec2(ca * p.x - sa * p.y, sa * p.x + ca * p.y);
     diskP.y /= diskTilt;
 
@@ -950,7 +951,8 @@ vec3 blackhole(vec2 p, float t) {
     float diskOuter = rH * 7.5;
     float diskW = rH * 1.1;
 
-    float diskBand = exp(-pow((diskR - (diskInner + diskOuter) * 0.5) / diskW, 2.0));
+    float diskDelta = (diskR - (diskInner + diskOuter) * 0.5) / diskW;
+    float diskBand = exp(-diskDelta * diskDelta);
     diskBand *= smoothstep(diskInner * 0.9, diskInner * 1.2, diskR);
     diskBand *= smoothstep(diskOuter * 1.1, diskOuter * 0.8, diskR);
 
@@ -967,7 +969,7 @@ vec3 blackhole(vec2 p, float t) {
     vec3 diskHot = mix(blue, teal, 0.4) * 1.2;
 
     vec3 diskCol = mix(diskCool, diskWarm, diskTemp);
-    diskCol = mix(diskCol, diskHot, pow(diskTemp, 2.0));
+    diskCol = mix(diskCol, diskHot, diskTemp * diskTemp);
 
     float diskMask = smoothstep(rH * 1.1, rH * 2.3, r);
     col += diskCol * diskBand * doppler * diskMask * form * 0.6;
@@ -977,7 +979,8 @@ vec3 blackhole(vec2 p, float t) {
     diskP2.y = abs(diskP2.y) + rH * 1.0;
     float diskR2 = length(diskP2);
 
-    float secondaryBand = exp(-pow((diskR2 - (diskInner + diskOuter) * 0.5) / (diskW * 0.28), 2.0));
+    float secDelta = (diskR2 - (diskInner + diskOuter) * 0.5) / (diskW * 0.28);
+    float secondaryBand = exp(-secDelta * secDelta);
     secondaryBand *= exp(-r * 7.0);
     secondaryBand *= smoothstep(rH * 1.0, rH * 1.9, r);
 
@@ -985,12 +988,14 @@ vec3 blackhole(vec2 p, float t) {
 
     // Relativistic jets
     float jetW = rH * 0.2;
-    float jet = exp(-pow(p.x / jetW, 2.0)) * exp(-abs(p.y) * 1.0);
+    float jetX = p.x / jetW;
+    float jet = exp(-jetX * jetX) * exp(-abs(p.y) * 1.0);
     jet *= smoothstep(rH * 1.0, rH * 3.5, abs(p.y));
     col += blue * 0.5 * jet * form * 0.2;
 
     // Inner glow
-    float innerGlow = exp(-pow(r - rH * 1.15, 2.0) * 90.0);
+    float innerDelta = r - rH * 1.15;
+    float innerGlow = exp(-innerDelta * innerDelta * 90.0);
     innerGlow *= smoothstep(rH * 0.95, rH * 1.4, r);
     col += purple * 0.35 * innerGlow * form;
 
@@ -1000,13 +1005,15 @@ vec3 blackhole(vec2 p, float t) {
     col *= shadow;
 
     // Edge glow
-    float edgeGlow = exp(-pow(r - rH, 2.0) * 180.0) * (1.0 - horizon);
+    float edgeDelta = r - rH;
+    float edgeGlow = exp(-edgeDelta * edgeDelta * 180.0) * (1.0 - horizon);
     col += purple * 0.3 * edgeGlow * form;
 
     // ─── EINSTEIN RING ───
     float einsteinR = rH * 2.8;
     float einsteinW = rH * 0.2;
-    float einstein = exp(-pow((r - einsteinR) / einsteinW, 2.0));
+    float einsteinDelta = (r - einsteinR) / einsteinW;
+    float einstein = exp(-einsteinDelta * einsteinDelta);
 
     float ringVar = 0.6 + 0.4 * sin(ang * 2.0 + t * 0.4);
     ringVar *= 0.75 + 0.25 * sin(ang * 7.0 - t * 0.25);
@@ -1019,14 +1026,16 @@ vec3 blackhole(vec2 p, float t) {
     // ─── SECONDARY PHOTON RING ───
     float secondaryR = rH * 1.6;
     float secondaryW = rH * 0.08;
-    float secondary = exp(-pow((r - secondaryR) / secondaryW, 2.0));
+    float secRingDelta = (r - secondaryR) / secondaryW;
+    float secondary = exp(-secRingDelta * secRingDelta);
     secondary *= 0.5 + 0.5 * sin(ang * 4.0 - t * 0.7);
     col += mix(blue, purple, 0.5) * secondary * form * 0.3;
 
     // ─── TERTIARY PHOTON RING ───
     float tertiaryR = rH * 1.25;
     float tertiaryW = rH * 0.04;
-    float tertiary = exp(-pow((r - tertiaryR) / tertiaryW, 2.0));
+    float tertDelta = (r - tertiaryR) / tertiaryW;
+    float tertiary = exp(-tertDelta * tertDelta);
     tertiary *= 0.6 + 0.4 * sin(ang * 5.0 + t * 0.5);
     col += teal * 0.8 * tertiary * form * 0.2;
 
@@ -1181,13 +1190,18 @@ void main() {
             float blurRadius = 2.0 + glass.poolGradient * 1.5;
             col = sampleWithBlur(refractedUV, blurRadius);
 
-            // Chromatic aberration - skip extra samples on mobile
-            if (mobile < 0.5) {
+            // Chromatic aberration - skip extra samples on mobile or during BH phase
+            if (mobile < 0.5 && bhFormation < 0.5) {
                 float caStrength = glass.refraction * 0.015 * (1.0 + totalFlash * 0.5);
                 vec2 caDir = normalize(glass.refractionOffset + vec2(0.001));
                 vec3 colR = sampleSceneComplete(refractedUV + caDir * caStrength, T);
                 vec3 colB = sampleSceneComplete(refractedUV - caDir * caStrength, T);
                 col = vec3(colR.r, col.g, colB.b);
+            } else if (bhFormation >= 0.5) {
+                // Fake CA during BH phase (much cheaper than 2 extra samples)
+                float caShift = 0.015 * (1.0 + totalFlash * 0.5);
+                col.r *= 1.0 + caShift;
+                col.b *= 1.0 - caShift * 0.5;
             }
 
             // Add flash
@@ -1221,7 +1235,8 @@ void main() {
         } else if (glass.glassType > 1.5) {
             // Mobile: simplified rendering (single sample + flash)
             // Desktop: full chromatic aberration with color bleeding
-            if (mobile > 0.5) {
+            // Mobile or BH phase: simplified rendering (saves 3-5 samples)
+            if (mobile > 0.5 || bhFormation >= 0.5) {
                 // Simple sample with basic CA approximation
                 col = sampleSceneComplete(refractedUV, T);
                 // Fake CA by shifting color channels slightly
@@ -1603,6 +1618,7 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
     const uFate = gl.getUniformLocation(program, 'fate');
     const uAge = gl.getUniformLocation(program, 'age');
     const uMobile = gl.getUniformLocation(program, 'mobile');
+    const uDiskPrecessLoc = gl.getUniformLocation(program, 'uDiskPrecess');
     const uNumBoxes = gl.getUniformLocation(program, 'numBoxes');
 
     // Get uniform locations for content box arrays
@@ -1640,7 +1656,22 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
     const SAMPLE_SIZE = 4;  // Was 8 - 75% fewer pixels to read
     const sampleBuffer = new Uint8Array(SAMPLE_SIZE * SAMPLE_SIZE * 4);
     let sampleSkip = 0;
-    const sampleEvery = isMobile ? 12 : 6; // Was 8/4 - reduces GPU→CPU sync stalls
+    let cssFrameCounter = 0;  // PERFORMANCE: Frame counter for CSS update throttling
+
+    // PERFORMANCE: Adaptive sample frequency based on phase
+    // During stable NS/BH phase, sample less frequently to reduce GPU→CPU sync stalls
+    function getSampleInterval(t: number): number {
+        if (t > 16) {
+            // NS/BH phase - very stable, sample much less
+            return isMobile ? 24 : 12;
+        }
+        if (t > 12) {
+            // Remnant phase - fairly stable
+            return isMobile ? 16 : 8;
+        }
+        // Flash/active phase - need more responsive sampling
+        return isMobile ? 12 : 6;
+    }
 
     // Smoothed values for glass physics
     let glassLum = 0;
@@ -1653,9 +1684,13 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
     let supernovaScreenY = 0.5;
     let scrollAtStart = 0;
 
-    // Glass element cache
+    // Glass element cache - flag-based invalidation (fixes flickering on scroll)
     let glassElements: HTMLElement[] = [];
-    let lastGlassQuery = 0;
+    let glassQueryStale = true;  // Start stale to force initial query
+
+    // FLICKERING FIX: Cache stable rects for containers with animating children
+    // Prevents layout thrashing from getBoundingClientRect during CSS animations
+    const stableRects = new WeakMap<HTMLElement, DOMRect>();
 
     // CSS variable cache to avoid redundant DOM writes
     const cssCache: Map<HTMLElement, Map<string, string>> = new Map();
@@ -1668,67 +1703,53 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         return t * t * (3 - 2 * t);
     };
 
-    // Query glass elements (cached, refresh every 500ms)
+    // Query glass elements (flag-based cache - invalidated on scroll)
     function queryGlassElements(): HTMLElement[] {
-        const now = performance.now();
-        if (now - lastGlassQuery < 500 && glassElements.length > 0) {
+        // Return cached if not stale and we have elements
+        if (!glassQueryStale && glassElements.length > 0) {
             return glassElements;
         }
-        lastGlassQuery = now;
+        glassQueryStale = false;  // Mark as fresh
 
         // STYLED PANELS ONLY - elements with VISIBLE BACKGROUNDS
         // These get: rim effects (::before/::after), backdrop blur, BH/GW transforms
-        //
-        // EXCLUDED (no visible background):
-        //   .section-header, .closing, .verdict, .ascii-content, .prose, footer,
-        //   .hero, .choice-option, .show-title, .collapsible, .collapsible-content
-        const panelSelectors = [
-            // Collapsible inner content (styled, NOT the outer .collapsible wrapper)
-            // NOTE: .collapsible-header excluded - creates horizontal bar glows
-            '.collapsible-inner',
-            // Styled cards and boxes (have backgrounds)
-            'blockquote',
-            '.card',
-            '.distinction-card',
-            '.equation-box',
-            '.interactive-box',
-            '.show-quote',
-            '.thought-experiment',  // Has gradient background + border
-            // ASCII interactive - outer container has background, NOT .ascii-content
-            // NOTE: .ascii-header excluded - creates horizontal bar glows
-            '.ascii-interactive',
-            // Credence bars (styled)
-            '.credence-bar',
-            // Character and hybrid cards (styled)
-            '.character-card',
-            '.hybrid-card',
-            // Attribution (styled)
-            '.attribution',
-        ];
+        // EXCLUDED (no visible background): .section-header, .closing, .verdict, etc.
+
+        // PERFORMANCE: Single combined selector instead of 13 separate queries
+        const PANEL_SELECTOR = '.collapsible-inner, blockquote, .card, .distinction-card, .equation-box, .interactive-box, .show-quote, .thought-experiment, .ascii-interactive, .credence-bar, .character-card, .hybrid-card, .attribution';
 
         const elements: HTMLElement[] = [];
         const viewportHeight = window.innerHeight;
         const viewportWidth = window.innerWidth;
 
-        // Helper to check if element is visible and in viewport
-        // PERFORMANCE: Using offsetHeight/offsetWidth instead of getComputedStyle
-        const isVisibleInViewport = (el: HTMLElement): boolean => {
-            // offsetHeight/offsetWidth are 0 for display:none or visibility:hidden ancestors
-            if (el.offsetHeight === 0 || el.offsetWidth === 0) return false;
-            const rect = el.getBoundingClientRect();
-            return rect.height > 10 &&
-                   rect.bottom > 0 && rect.top < viewportHeight &&
-                   rect.right > 0 && rect.left < viewportWidth;
-        };
+        // PERFORMANCE: Single querySelectorAll with combined selector
+        document.querySelectorAll<HTMLElement>(PANEL_SELECTOR).forEach(el => {
+            // Skip if hidden (offsetHeight/Width are 0 for display:none)
+            if (el.offsetHeight === 0 || el.offsetWidth === 0) return;
 
-        // Collect all visible elements
-        panelSelectors.forEach(selector => {
-            document.querySelectorAll(selector).forEach(el => {
-                const htmlEl = el as HTMLElement;
-                if (isVisibleInViewport(htmlEl)) {
-                    elements.push(htmlEl);
+            // FLICKERING FIX: For .ascii-interactive containers, use cached rect
+            // during animations to prevent unstable visibility checks
+            const isAsciiInteractive = el.classList.contains('ascii-interactive');
+            const hasAnimatingChildren = isAsciiInteractive &&
+                el.querySelector('.glass-node.firing, .glass-node.observing, .glass-node.dead, .glass-node.defector');
+
+            let rect: DOMRect;
+            if (hasAnimatingChildren && stableRects.has(el)) {
+                // Use cached stable rect during animations
+                rect = stableRects.get(el)!;
+            } else {
+                rect = el.getBoundingClientRect();
+                // Cache rect for ascii-interactive containers
+                if (isAsciiInteractive) {
+                    stableRects.set(el, rect);
                 }
-            });
+            }
+
+            if (rect.height > 10 &&
+                rect.bottom > 0 && rect.top < viewportHeight &&
+                rect.right > 0 && rect.left < viewportWidth) {
+                elements.push(el);
+            }
         });
 
         glassElements = elements;
@@ -1756,21 +1777,41 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
     // Track elements that have received overlays (for cleanup)
     const overlayElements = new Set<HTMLElement>();
 
-    // Inject overlay divs into glass elements
-    // Called each frame to handle newly visible elements
-    function injectGlassOverlays(elements: HTMLElement[]): void {
-        elements.forEach(element => {
-            // Skip if already has overlay
-            if (overlayElements.has(element)) return;
+    // PERFORMANCE FIX: Bidirectional sync to prevent flickering
+    // Synchronize overlays with current query results - removes stale, adds new
+    function syncGlassOverlays(currentElements: HTMLElement[]): void {
+        const currentSet = new Set(currentElements);
 
-            // Add active class for positioning context
-            element.classList.add('df-glass-active');
+        // 1. REMOVE overlays from elements no longer in query (fixes flickering!)
+        // HYSTERESIS: Don't remove from animating containers to prevent flicker
+        overlayElements.forEach(element => {
+            if (!currentSet.has(element)) {
+                // Check if this is an animating container - if so, keep overlay
+                const isAsciiInteractive = element.classList.contains('ascii-interactive');
+                const hasAnimatingChildren = isAsciiInteractive &&
+                    element.querySelector('.glass-node.firing, .glass-node.observing, .glass-node.dead, .glass-node.defector');
 
-            // Inject overlay as first child
-            element.insertAdjacentHTML('afterbegin', GLASS_OVERLAY_HTML);
+                if (hasAnimatingChildren) {
+                    // Keep overlay during animation - add back to currentSet tracking
+                    return; // Skip removal, element stays in overlayElements
+                }
 
-            // Track this element
-            overlayElements.add(element);
+                // Element left viewport or became hidden
+                const overlay = element.querySelector('.df-glass-overlay');
+                if (overlay) overlay.remove();
+                element.classList.remove('df-glass-active', 'bh-active');
+                cssCache.delete(element);  // Clear cached CSS vars
+                overlayElements.delete(element);
+            }
+        });
+
+        // 2. ADD overlays to new elements
+        currentElements.forEach(element => {
+            if (!overlayElements.has(element)) {
+                element.classList.add('df-glass-active');
+                element.insertAdjacentHTML('afterbegin', GLASS_OVERLAY_HTML);
+                overlayElements.add(element);
+            }
         });
     }
 
@@ -1812,8 +1853,8 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         const elements = queryGlassElements();
         if (elements.length === 0) return;
 
-        // Throttled canvas sampling
-        const shouldSample = (sampleSkip++ % sampleEvery) === 0;
+        // Throttled canvas sampling (adaptive based on phase)
+        const shouldSample = (sampleSkip++ % getSampleInterval(t)) === 0;
 
         // Calculate supernova screen position accounting for scroll
         const scrollDelta = window.scrollY - scrollAtStart;
@@ -1892,25 +1933,25 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         }
 
         // Override light direction to point toward supernova
-        // Only during active phases (not progenitor or fadeout)
-        if (t > 9.5 && t < 45) {
-            elements.forEach(element => {
-                const rect = element.getBoundingClientRect();
-                const elemCenterX = (rect.left + rect.width * 0.5) / window.innerWidth;
-                const elemCenterY = (rect.top + rect.height * 0.5) / window.innerHeight;
+        // PERFORMANCE: Only use primary element (first in list) instead of looping
+        // The previous loop overwrote values, so only the last element mattered anyway
+        if (t > 9.5 && t < 45 && elements.length > 0) {
+            const primary = elements[0];
+            const rect = primary.getBoundingClientRect();
+            const elemCenterX = (rect.left + rect.width * 0.5) / window.innerWidth;
+            const elemCenterY = (rect.top + rect.height * 0.5) / window.innerHeight;
 
-                // Direction from element toward supernova
-                const dx = supernovaScreenX - elemCenterX;
-                const dy = supernovaY - elemCenterY;
-                const mag = Math.hypot(dx, dy);
+            // Direction from primary element toward supernova
+            const dx = supernovaScreenX - elemCenterX;
+            const dy = supernovaY - elemCenterY;
+            const mag = Math.hypot(dx, dy);
 
-                if (mag > 0.02) {
-                    // Blend toward supernova direction during flash
-                    const blendStrength = eventLum * 0.8;
-                    lightDir[0] = lerp(lightDir[0], dx / mag, blendStrength);
-                    lightDir[1] = lerp(lightDir[1], -dy / mag, blendStrength); // Flip for CSS coords
-                }
-            });
+            if (mag > 0.02) {
+                // Blend toward supernova direction during flash
+                const blendStrength = eventLum * 0.8;
+                lightDir[0] = lerp(lightDir[0], dx / mag, blendStrength);
+                lightDir[1] = lerp(lightDir[1], -dy / mag, blendStrength);
+            }
         }
 
         // Combine sampled luminance with event luminance
@@ -1959,32 +2000,30 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
             lightDir[0] += (0 - lightDir[0]) * bhLightInfluence * 0.1;
             lightDir[1] += (-0.8 - lightDir[1]) * bhLightInfluence * 0.1;
 
-            // ─── GRAVITATIONAL WAVES ───
-            const gwStart = 12;
-            const gwEnd = 28;
-            const gwElapsed = t - gwStart;
+            // ─── GRAVITATIONAL WAVES (OPTIMIZED) ───
+            // Pre-computed wave parameters: [delay, decay, scale]
+            const gwElapsed = t - 12;  // gwStart = 12
 
-            if (gwElapsed > 0 && gwElapsed < (gwEnd - gwStart)) {
-                const waveCount = 5;
+            if (gwElapsed > 0 && gwElapsed < 16) {  // gwEnd - gwStart = 28 - 12 = 16
+                // PERFORMANCE: Pre-computed wave params instead of calculating in loop
+                // Each wave: [delay, decay, intensityScale]
+                const waves = [
+                    [0,   0.4, 1.00],  // Wave 0
+                    [1.8, 0.5, 0.85],  // Wave 1
+                    [3.6, 0.6, 0.70],  // Wave 2
+                    [5.4, 0.7, 0.55],  // Wave 3
+                    [7.2, 0.8, 0.40],  // Wave 4
+                ];
+                const wavePeak = 1.5;
                 let totalIntensity = 0;
 
-                for (let i = 0; i < waveCount; i++) {
-                    const waveDelay = i * 1.8;
-                    const waveAge = gwElapsed - waveDelay;
-
+                for (let i = 0; i < 5; i++) {
+                    const waveAge = gwElapsed - waves[i][0];
                     if (waveAge > 0 && waveAge < 8) {
-                        const wavePeak = 1.5;
-                        const waveDecay = 0.4 + i * 0.1;
-
-                        let intensity: number;
-                        if (waveAge < wavePeak) {
-                            intensity = smoothstep(0, wavePeak, waveAge);
-                        } else {
-                            intensity = Math.exp(-(waveAge - wavePeak) * waveDecay);
-                        }
-
-                        intensity *= (1 - i * 0.15);
-                        totalIntensity += intensity;
+                        const intensity = waveAge < wavePeak
+                            ? smoothstep(0, wavePeak, waveAge)
+                            : Math.exp(-(waveAge - wavePeak) * waves[i][1]);
+                        totalIntensity += intensity * waves[i][2];
                     }
                 }
 
@@ -2027,48 +2066,82 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         const borderB = Math.round(215 + glassLum * 40);
         const borderA = 0.08 + glassLum * 0.4;
 
-        // ─── INJECT OVERLAYS (first frame only) ───
-        injectGlassOverlays(elements);
+        // ─── SYNC OVERLAYS (bidirectional - fixes flickering) ───
+        syncGlassOverlays(elements);
 
         // ─── TOGGLE BLACK HOLE CLASS ───
         // BH phase starts at t>16 with fate>0.5
         const bhPhaseActive = t > 16 && bhStrength > 0.1;
         updateBlackHoleClass(elements, bhPhaseActive);
 
+        // ─── PERFORMANCE: PRE-COMPUTE ALL FORMATTED STRINGS ONCE ───
+        // Avoids 18+ toFixed() calls per element per frame (reduces GC pressure)
+        const fmt = {
+            lum: String(Math.round(glassLum * 1000) / 1000),
+            impulse: String(Math.round(imp * 1000) / 1000),
+            tintR: String(Math.round(glassRGB[0])),
+            tintG: String(Math.round(glassRGB[1])),
+            tintB: String(Math.round(glassRGB[2])),
+            lightX: String(Math.round(lightDir[0] * 1000) / 1000),
+            lightY: String(Math.round(lightDir[1] * 1000) / 1000),
+            textMain: `rgba(${mainR},${mainG},${mainB},${Math.round(mainA * 100) / 100})`,
+            textBody: `rgba(${bodyR},${bodyG},${bodyB},${Math.round(bodyA * 100) / 100})`,
+            textMute: `rgba(${muteR},${muteG},${muteB},${Math.round(muteA * 100) / 100})`,
+            shadowX: `${Math.round(sx * 10) / 10}px`,
+            shadowY: `${Math.round(sy * 10) / 10}px`,
+            shadowBlur: `${Math.round(shadowBlur * 10) / 10}px`,
+            shadowA: String(Math.round(shadowAlpha * 1000) / 1000),
+            borderColor: `rgba(${borderR},${borderG},${borderB},${Math.round(borderA * 100) / 100})`,
+            bhStrength: String(Math.round(bhStrength * 10000) / 10000),
+            bhRedshift: String(Math.round(bhRedshift * 10000) / 10000),
+            gwIntensity: String(Math.round(gwIntensity * 10000) / 10000),
+            gwPhase: String(Math.round(gwPhase * 10000) / 10000),
+        };
+
+        // ─── SET GLOBAL BH/GW VARS ON :root (identical for all elements) ───
+        const root = document.documentElement;
+        root.style.setProperty('--bh-strength', fmt.bhStrength);
+        root.style.setProperty('--bh-redshift', fmt.bhRedshift);
+        root.style.setProperty('--gw-intensity', fmt.gwIntensity);
+        root.style.setProperty('--gw-phase', fmt.gwPhase);
+
         // ─── UPDATE CSS VARIABLES ON ALL GLASS ELEMENTS ───
+        // PERFORMANCE: During BH phase, update CSS every 3rd frame (50% reduction)
+        // During non-BH, update every 2nd frame (matches typical 30fps visual update rate)
+        cssFrameCounter++;
+        const cssUpdateInterval = bhPhaseActive ? 3 : 2;
+        const shouldUpdateCSS = (cssFrameCounter % cssUpdateInterval) === 0;
+
         elements.forEach(element => {
-            // Core values
-            setGlassVar(element, '--lum', glassLum.toFixed(3));
-            setGlassVar(element, '--impulse', imp.toFixed(3));
+            // Always sync lum/impulse for responsiveness, throttle others during BH
+            setGlassVar(element, '--lum', fmt.lum);
+            setGlassVar(element, '--impulse', fmt.impulse);
+
+            // Skip non-critical updates during BH phase to reduce DOM writes
+            if (!shouldUpdateCSS && bhPhaseActive) return;
 
             // Sampled tint color
-            setGlassVar(element, '--tint-r', Math.round(glassRGB[0]).toString());
-            setGlassVar(element, '--tint-g', Math.round(glassRGB[1]).toString());
-            setGlassVar(element, '--tint-b', Math.round(glassRGB[2]).toString());
+            setGlassVar(element, '--tint-r', fmt.tintR);
+            setGlassVar(element, '--tint-g', fmt.tintG);
+            setGlassVar(element, '--tint-b', fmt.tintB);
 
             // Light direction
-            setGlassVar(element, '--light-x', lightDir[0].toFixed(3));
-            setGlassVar(element, '--light-y', lightDir[1].toFixed(3));
+            setGlassVar(element, '--light-x', fmt.lightX);
+            setGlassVar(element, '--light-y', fmt.lightY);
 
-            // Adaptive text colors (text darkens on bright background)
-            setGlassVar(element, '--text-main', `rgba(${mainR}, ${mainG}, ${mainB}, ${mainA.toFixed(2)})`);
-            setGlassVar(element, '--text-body', `rgba(${bodyR}, ${bodyG}, ${bodyB}, ${bodyA.toFixed(2)})`);
-            setGlassVar(element, '--text-mute', `rgba(${muteR}, ${muteG}, ${muteB}, ${muteA.toFixed(2)})`);
+            // Adaptive text colors
+            setGlassVar(element, '--text-main', fmt.textMain);
+            setGlassVar(element, '--text-body', fmt.textBody);
+            setGlassVar(element, '--text-mute', fmt.textMute);
 
             // Directional shadows
-            setGlassVar(element, '--shadow-x', `${sx.toFixed(1)}px`);
-            setGlassVar(element, '--shadow-y', `${sy.toFixed(1)}px`);
-            setGlassVar(element, '--shadow-blur', `${shadowBlur.toFixed(1)}px`);
-            setGlassVar(element, '--shadow-a', shadowAlpha.toFixed(3));
+            setGlassVar(element, '--shadow-x', fmt.shadowX);
+            setGlassVar(element, '--shadow-y', fmt.shadowY);
+            setGlassVar(element, '--shadow-blur', fmt.shadowBlur);
+            setGlassVar(element, '--shadow-a', fmt.shadowA);
 
             // Dynamic border
-            setGlassVar(element, '--border-color', `rgba(${borderR}, ${borderG}, ${borderB}, ${borderA.toFixed(2)})`);
-
-            // Black hole effects
-            setGlassVar(element, '--bh-strength', bhStrength.toFixed(4));
-            setGlassVar(element, '--bh-redshift', bhRedshift.toFixed(4));
-            setGlassVar(element, '--gw-intensity', gwIntensity.toFixed(4));
-            setGlassVar(element, '--gw-phase', gwPhase.toFixed(4));
+            setGlassVar(element, '--border-color', fmt.borderColor);
         });
     }
 
@@ -2136,6 +2209,10 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
     // PERFORMANCE: Debounced scroll handler to reduce DOM queries
     let scrollTimeout: number | undefined;
     function handleScroll() {
+        // Immediately invalidate glass cache (fixes flickering on scroll)
+        glassQueryStale = true;
+
+        // Debounce content box updates
         if (scrollTimeout !== undefined) {
             clearTimeout(scrollTimeout);
         }
@@ -2193,6 +2270,9 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         glContext.uniform1f(uFate, config.fate);
         glContext.uniform1f(uAge, 0);
         glContext.uniform1f(uMobile, isMobile ? 1.0 : 0.0);
+        // Pre-compute disk precession trig (was per-pixel, now once per frame)
+        const diskPrecess = 0.5 + 0.08 * Math.sin(t * 0.12);
+        glContext.uniform2f(uDiskPrecessLoc, Math.cos(diskPrecess), Math.sin(diskPrecess));
         glContext.uniform1i(uNumBoxes, contentBoxes.length);
 
         // Update content box uniforms (with three-tier system)

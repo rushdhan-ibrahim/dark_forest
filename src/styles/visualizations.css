@@ -5523,6 +5523,8 @@
     pointer-events: none;
     overflow: visible;
     z-index: 1;
+    /* PERFORMANCE: Contain layout to prevent reflow cascades */
+    contain: layout style;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -5908,6 +5910,23 @@
                              saturate(calc(1.0 + var(--lum) * 0.25 + var(--bh-strength) * 0.3))
                              brightness(calc(1.0 + var(--lum) * 0.08))
                              hue-rotate(calc(var(--bh-redshift) * -8deg));
+}
+
+/* PERFORMANCE: Simplified backdrop during BH phase (single blur vs 4 effects) */
+.df-glass-active.bh-active {
+    backdrop-filter: blur(calc(3px + var(--bh-strength) * 5px));
+    -webkit-backdrop-filter: blur(calc(3px + var(--bh-strength) * 5px));
+    /* Containment during BH phase reduces layout thrashing */
+    contain: layout style paint;
+}
+
+/* PERFORMANCE: Reduce GPU layers during BH phase */
+.df-glass-active.bh-active .df-glass-bloom,
+.df-glass-active.bh-active .df-glass-flash,
+.df-glass-active.bh-active .df-glass-nebula,
+.df-glass-active.bh-active .df-glass-caustic,
+.df-glass-active.bh-active .df-glass-highlight {
+    will-change: auto;  /* Release compositor layers during BH */
 }
 
 /* ═══════════════════════════════════════════════════════════════
