@@ -5931,38 +5931,128 @@
 
 /* ═══════════════════════════════════════════════════════════════
    MOBILE OPTIMIZATIONS
-   Reduce overlay complexity for performance
+
+   KEY INSIGHT: Child div approach fails on mobile due to z-index/containment issues.
+   SOLUTION: Use pseudo-elements directly on panel (like stardust_merged).
+
+   - Hide overlay div structure entirely
+   - Use ::before for bloom, ::after for flash
+   - No backdrop-filter (too expensive)
+   - Pseudo-elements CAN extend outside panel bounds
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-    /* Reduce bloom expansion on mobile */
-    .df-glass-bloom {
-        inset: calc(-4px - var(--lum) * 12px - var(--impulse) * 20px);
-        filter: blur(calc(3px + var(--lum) * 4px));
-    }
-
-    /* Reduce flash expansion on mobile */
-    .df-glass-flash {
-        inset: calc(-10px - var(--impulse) * 40px);
-        filter: blur(calc(6px + var(--impulse) * 10px));
-    }
-
-    /* Reduce warm glow on mobile */
-    .df-glass-warm {
-        inset: calc(-3px - var(--lum) * 8px);
-    }
-
-    /* Skip caustic and highlight on mobile for performance */
-    .df-glass-caustic,
-    .df-glass-highlight {
-        display: none;
-    }
-
-    /* Reduce gravitational effects */
+    /* Base panel setup for mobile */
     .df-glass-active {
-        transform:
-            scaleY(calc(1 + var(--bh-strength) * 0.015))
-            translateY(calc(var(--bh-strength) * -1px));
-        backdrop-filter: blur(calc(1px + var(--lum) * 3px));
-        -webkit-backdrop-filter: blur(calc(1px + var(--lum) * 3px));
+        /* No backdrop-filter - major performance killer on mobile */
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        /* Remove will-change to save GPU compositor layers */
+        will-change: auto;
+        /* Ensure pseudo-elements can extend outside */
+        overflow: visible !important;
+        /* Simplified transform */
+        transform: translateY(calc(var(--bh-strength) * -1px));
     }
+
+    /* HIDE the entire overlay div structure on mobile */
+    .df-glass-overlay {
+        display: none !important;
+    }
+
+    /* ═══ BLOOM EFFECT via ::before ═══
+       Extends outside panel, gradient-only glow (NO blur for performance) */
+    .df-glass-active::before {
+        content: '';
+        position: absolute;
+        /* Larger inset to compensate for no blur */
+        inset: calc(-12px - var(--lum) * 25px - var(--impulse) * 45px);
+        border-radius: calc(28px + var(--lum) * 15px);
+        pointer-events: none;
+        z-index: -1;
+
+        /* Softer gradient to simulate blur effect */
+        background: radial-gradient(
+            ellipse 100% 100% at center,
+            transparent 35%,
+            rgba(200, 180, 220, calc(var(--lum) * 0.2 + var(--impulse) * 0.35)) 50%,
+            rgba(190, 170, 210, calc(var(--lum) * 0.35 + var(--impulse) * 0.5)) 65%,
+            rgba(180, 160, 200, calc(var(--lum) * 0.4 + var(--impulse) * 0.55)) 78%,
+            rgba(160, 140, 180, calc(var(--lum) * 0.2)) 90%,
+            transparent 100%
+        );
+
+        /* NO filter: blur() - critical for mobile performance */
+        /* Opacity drives visibility */
+        opacity: calc((var(--lum) * 2 + var(--impulse) * 3 + var(--bh-strength) * 1.2) * 2.5);
+        transition: inset 0.2s ease-out, opacity 0.2s ease-out;
+    }
+
+    /* ═══ FLASH EFFECT via ::after ═══
+       Explosive burst during impulse (NO blur for performance) */
+    .df-glass-active::after {
+        content: '';
+        position: absolute;
+        /* Larger inset to compensate for no blur */
+        inset: calc(-25px - var(--impulse) * 80px);
+        border-radius: calc(40px + var(--impulse) * 35px);
+        pointer-events: none;
+        z-index: -2;
+
+        /* Multi-stop gradient simulates soft blur edge */
+        background: radial-gradient(
+            ellipse 100% 100% at center,
+            transparent 25%,
+            rgba(255, 252, 245, calc(var(--impulse) * 0.4)) 40%,
+            rgba(255, 250, 240, calc(var(--impulse) * 0.55)) 52%,
+            rgba(255, 240, 220, calc(var(--impulse) * 0.6)) 65%,
+            rgba(255, 220, 180, calc(var(--impulse) * 0.35)) 80%,
+            transparent 100%
+        );
+
+        /* NO filter: blur() - critical for mobile performance */
+        opacity: calc(var(--impulse) * 4);
+        transition: inset 0.15s ease-out, opacity 0.15s ease-out;
+    }
+
+    /* ═══ BH PHASE ADJUSTMENTS ═══ */
+    .df-glass-active.bh-active::before {
+        /* Add warm accretion glow during BH */
+        background: radial-gradient(
+            ellipse 100% 100% at center,
+            transparent 45%,
+            rgba(255, 200, 160, calc(var(--bh-strength) * 0.2)) 60%,
+            rgba(200, 160, 180, calc(var(--lum) * 0.2 + var(--bh-strength) * 0.15)) 75%,
+            rgba(160, 140, 160, calc(var(--lum) * 0.1)) 90%,
+            transparent 100%
+        );
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE CLASS APPROACH (from stardust)
+
+   Applied via JS: document.body.classList.add('mobile')
+   More reliable than media queries for mobile detection.
+   Covers tablets in landscape mode and other edge cases.
+   ═══════════════════════════════════════════════════════════════ */
+
+body.mobile .df-glass-active {
+    /* Ensure all mobile optimizations apply regardless of screen width */
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    will-change: auto;
+    contain: layout style;
+}
+
+body.mobile .df-glass-overlay {
+    display: none !important;
+}
+
+/* Disable decorative overlays that are hidden anyway */
+body.mobile .df-glass-bloom,
+body.mobile .df-glass-flash,
+body.mobile .df-glass-warm,
+body.mobile .df-glass-nebula,
+body.mobile .df-glass-caustic {
+    display: none !important;
 }

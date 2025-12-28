@@ -71,8 +71,13 @@ float fbm1(vec2 p) {
 }
 
 // Domain warping for fluid-like nebulae
-// PERFORMANCE: Uses fbm1 for initial warp, fbm2 only for final
+// PERFORMANCE: Mobile uses single noise sample (3x reduction)
 float warp(vec2 p, float t) {
+    if (mobile > 0.5) {
+        // Mobile: single noise sample instead of 3
+        return fbm1(p + t * 0.06) * 0.7 + 0.3;
+    }
+    // Desktop: full quality (3 noise samples)
     vec2 q = vec2(fbm1(p), fbm1(p + vec2(5.2, 1.3)));
     return fbm2(p + 2.5 * q + t * 0.06);
 }
@@ -166,7 +171,14 @@ vec3 calculateLightPooling(vec2 screenUV, vec2 boxCenter, vec2 boxHalfSize,
     vec3 poolColor = mix(warmWhite, vec3(1.0, 0.92, 0.8), 0.3);
     poolEffect += poolColor * poolIntensity * lightIntensity * 0.35;
 
-    // ═══ EDGE FOCUSING ═══
+    // MOBILE OPTIMIZATION: Skip expensive caustic/edge/depth effects
+    // Just use interior glow with flash boost (saves ~6 operations per pixel)
+    if (mobile > 0.5) {
+        float flashBoost = 1.0 + flashLevel * 3.0;
+        return poolEffect * flashBoost;
+    }
+
+    // ═══ EDGE FOCUSING ═══ (DESKTOP ONLY)
     // Light appears to "pour in" at the edges and focus toward center
     float edgeFocus = smoothstep(0.5, 0.92, centerDist);
 
@@ -442,7 +454,11 @@ vec3 explosion(vec2 p, float t) {
     col += shellCol * shell * intensity;
 
     // Multiple shockwave rings with organic wobble
+    // MOBILE: 2 rings with 1 sin() each (vs 4 rings × 3 sin() on desktop)
+    float maxRings = mobile > 0.5 ? 2.0 : 4.0;
     for (float i = 0.0; i < 4.0; i++) {
+        if (i >= maxRings) break;  // Early exit on mobile
+
         float delay = i * 0.015;
         float ringProg = clamp((elapsed - delay) / (6.0 + i), 0.0, 1.0);
         float baseRingR = ringProg * 1.2;
@@ -450,14 +466,20 @@ vec3 explosion(vec2 p, float t) {
         float morphSpeed = 12.0 + i * 2.0;
         float morphPhase = t * morphSpeed + i * 1.5;
 
+        // MOBILE: single sin() vs 3 sin() calls
         float distort = 0.0;
-        distort += sin(ang * 1.0 + morphPhase) * 0.03;
-        distort += sin(ang * 2.0 - morphPhase * 0.7) * 0.015;
-        distort += sin(ang * 3.0 + morphPhase * 1.3) * 0.008;
+        if (mobile > 0.5) {
+            distort = sin(ang * 2.0 + morphPhase) * 0.025;  // Single sin
+        } else {
+            distort += sin(ang * 1.0 + morphPhase) * 0.03;
+            distort += sin(ang * 2.0 - morphPhase * 0.7) * 0.015;
+            distort += sin(ang * 3.0 + morphPhase * 1.3) * 0.008;
+        }
 
         float ringR = baseRingR * (1.0 + distort);
         float ringW = 0.008 + ringProg * 0.004;
-        float ring = exp(-pow((r - ringR) / ringW, 2.0));
+        float delta = (r - ringR) / ringW;
+        float ring = exp(-delta * delta);  // Optimized: no pow()
         ring *= 1.0 - ringProg;
 
         vec3 ringCol = i < 1.0 ? blue * 1.5 :
@@ -819,6 +841,7 @@ vec2 gravitationalWaves(vec2 uv, float t, float bhForm) {
 }
 
 // Visible gravitational wave glow
+// MOBILE: 2 waves instead of 4, optimized pow()
 vec3 gravitationalWaveGlow(vec2 uv, float t, float bhForm) {
     if (bhForm < 0.01) return vec3(0.0);
 
@@ -828,8 +851,11 @@ vec3 gravitationalWaveGlow(vec2 uv, float t, float bhForm) {
 
     vec3 col = vec3(0.0);
 
-    // Expanding wave fronts
+    // Expanding wave fronts - MOBILE: 2 waves vs 4
+    float maxWaves = mobile > 0.5 ? 2.0 : 4.0;
     for (float i = 0.0; i < 4.0; i++) {
+        if (i >= maxWaves) break;
+
         float waveStart = i * 1.5;
         float waveAge = elapsed - waveStart;
 
@@ -837,7 +863,8 @@ vec3 gravitationalWaveGlow(vec2 uv, float t, float bhForm) {
             float waveR = waveAge * 0.12;
             float waveW = 0.015 + waveAge * 0.008;
 
-            float wave = exp(-pow((r - waveR) / waveW, 2.0));
+            float delta = (r - waveR) / waveW;
+            float wave = exp(-delta * delta);  // Optimized: no pow()
             wave *= exp(-waveAge * 0.35);
             wave *= smoothstep(0.0, 0.5, waveAge);
 
@@ -1101,29 +1128,15 @@ vec3 sampleSceneComplete(vec2 uv, float t) {
 // ══════════════════════════════════════════════════════════════
 
 vec3 sampleWithBlur(vec2 uv, float blurRadius) {
-    vec3 total = vec3(0.0);
-
-    // PERFORMANCE OPTIMIZED: Reduced sample counts
-    // Mobile: 3-sample (center + horizontal) - was 5
-    // Desktop: 5-sample cross pattern - was 9
+    // PERFORMANCE: Mobile uses NO blur (single sample) for maximum performance
+    // Desktop uses 5-sample cross pattern
     if (mobile > 0.5) {
-        // 3-sample horizontal blur - minimal but effective
-        float weights[3];
-        weights[0] = 0.5;   // center (dominant)
-        weights[1] = 0.25;  // left
-        weights[2] = 0.25;  // right
+        // Single sample - no blur on mobile (blur simulated in CSS instead)
+        return sampleSceneComplete(uv, T);
+    }
 
-        vec2 offsets[3];
-        offsets[0] = vec2(0.0, 0.0);
-        offsets[1] = vec2(-1.0, 0.0);
-        offsets[2] = vec2(1.0, 0.0);
-
-        for (int i = 0; i < 3; i++) {
-            vec2 sampleUV = uv + offsets[i] * blurRadius * 0.005;
-            vec3 s = sampleSceneComplete(sampleUV, T);
-            total += s * weights[i];
-        }
-    } else {
+    vec3 total = vec3(0.0);
+    {
         // 5-sample cross pattern for desktop - was 9-sample Gaussian
         float weights[5];
         weights[0] = 0.4;   // center
@@ -1322,8 +1335,9 @@ void main() {
         // ═══ OUTSIDE GLASS: Full intensity supernova with gravitational effects ═══
 
         // ═══ SHADER-BASED BACKGROUND WITH GRAVITATIONAL LENSING ═══
-        if (lensStrength > 0.01) {
-            // Apply gravitational lensing to background coordinates
+        // MOBILE: Skip ALL lensing (expensive sqrt, atan2, trig per pixel)
+        if (lensStrength > 0.01 && mobile < 0.5) {
+            // Desktop: full gravitational lensing
             vec2 lensedBgUV = gravitationalLens(gwDistortedUV, lensStrength, T);
 
             // Lensed nebula - warped by black hole gravity
@@ -1333,7 +1347,7 @@ void main() {
             col += stars(lensedBgUV, T, parallax) * 0.3;
 
             // Add secondary lensed ghost images (Einstein ring effect)
-            if (lensStrength > 0.05 && mobile < 0.5) {
+            if (lensStrength > 0.05) {
                 vec2 secondaryUV = secondaryLens(gwDistortedUV, lensStrength * 0.7);
                 float ringMask = smoothstep(0.06, 0.12, length(gwDistortedUV));
                 ringMask *= smoothstep(0.25, 0.15, length(gwDistortedUV));
@@ -1342,16 +1356,22 @@ void main() {
             }
 
             // Tertiary lensing for extreme cases (light orbited 2+ times)
-            if (lensStrength > 0.3 && mobile < 0.5) {
+            if (lensStrength > 0.3) {
                 vec2 tertiaryUV = tertiaryLens(gwDistortedUV, lensStrength * 0.5);
                 float innerRingMask = smoothstep(0.04, 0.08, length(gwDistortedUV));
                 innerRingMask *= smoothstep(0.15, 0.10, length(gwDistortedUV));
                 col += stars(tertiaryUV, T, parallax) * innerRingMask * 0.08;
             }
         } else {
-            // Normal background without lensing
+            // Mobile OR no lensing: simple background with subtle darkening
             col = nebula(gwDistortedUV, T, parallax);
             col += stars(gwDistortedUV, T, parallax) * 0.3;
+
+            // Mobile: fake BH effect with simple darkening at center
+            if (mobile > 0.5 && lensStrength > 0.01) {
+                float bhDarken = smoothstep(0.15, 0.02, length(gwDistortedUV));
+                col *= 1.0 - bhDarken * lensStrength * 0.7;
+            }
         }
 
         // Main supernova with GW distortion
@@ -1569,13 +1589,25 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
     `;
     document.body.appendChild(canvas);
 
+    // Detect mobile early for WebGL context options
+    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                           (window.innerWidth < 768);
+
+    // MOBILE OPTIMIZATION: Add body.mobile class for CSS overrides (like stardust)
+    if (isMobileDevice) {
+        document.body.classList.add('mobile');
+    }
+
     // Get WebGL context with alpha for transparency
+    // MOBILE OPTIMIZATION: powerPreference and desynchronized reduce latency
     const gl = canvas.getContext('webgl', {
         alpha: true,
         antialias: false,
         depth: false,
         stencil: false,
-        premultipliedAlpha: true
+        premultipliedAlpha: true,
+        powerPreference: isMobileDevice ? 'low-power' : 'high-performance',
+        desynchronized: true  // Reduces input latency, especially on mobile
     });
 
     if (!gl) {
@@ -1630,9 +1662,8 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
     gl.enableVertexAttribArray(pAttr);
     gl.vertexAttribPointer(pAttr, 2, gl.FLOAT, false, 0, 0);
 
-    // Detect mobile for performance optimization
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-                     (window.innerWidth < 768);
+    // Use the early mobile detection (already set body.mobile class)
+    const isMobile = isMobileDevice;
 
     // Get uniform locations
     const uR = gl.getUniformLocation(program, 'R');
@@ -1747,13 +1778,19 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
                 el.querySelector('#glass-forest-container');
 
             let rect: DOMRect;
-            if (isGlassForestContainer && stableRects.has(el)) {
+            // MOBILE OPTIMIZATION: Cache ALL rects on mobile (not just glass forest)
+            // Mobile doesn't scroll/resize as dynamically, so cached rects are stable
+            // This eliminates layout thrashing from getBoundingClientRect() calls
+            if (isMobile && stableRects.has(el)) {
+                // Mobile: ALWAYS use cached rect for all elements
+                rect = stableRects.get(el)!;
+            } else if (isGlassForestContainer && stableRects.has(el)) {
                 // Glass Forest: ALWAYS use cached rect to prevent flicker
                 rect = stableRects.get(el)!;
             } else {
                 rect = el.getBoundingClientRect();
-                // Cache rect for ascii-interactive containers
-                if (isAsciiInteractive) {
+                // Cache rect for ascii-interactive containers OR all elements on mobile
+                if (isAsciiInteractive || isMobile) {
                     stableRects.set(el, rect);
                 }
             }
@@ -1880,15 +1917,17 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
 
         // ═══ DETERMINISTIC LUMINANCE FROM TIMELINE ═══
         // Matches stardust_merged approach - no readPixels!
-        let targetLum = 0.12;  // Base nebula ambient
+        // MOBILE: Higher base luminance for visibility (pseudo-elements need stronger signal)
+        const mobileLumBoost = isMobile ? 1.5 : 1.0;
+        let targetLum = (isMobile ? 0.18 : 0.12);  // Higher base on mobile
         let impulse = 0;
         let tintR = 140, tintG = 130, tintB = 180;  // Default purple nebula tint
 
         // ─── PROGENITOR PHASE (T < 9.8) ───
         if (t < 9.8) {
             const inst = smoothstep(0, 9, t);
-            // Star breathing pulse
-            targetLum = 0.15 + 0.08 * Math.sin(t * (1.5 + inst * 3)) * (1 + inst);
+            // Star breathing pulse - boosted on mobile
+            targetLum = (0.15 + 0.08 * Math.sin(t * (1.5 + inst * 3)) * (1 + inst)) * mobileLumBoost;
             // Warm tint from star
             const warmth = 0.3 + inst * 0.4;
             tintR = lerp(140, 255, warmth);
@@ -1904,8 +1943,8 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         else if (t < 11.5) {
             const flashPeak = 10.0;
             const flash = Math.exp(-Math.pow((t - flashPeak) * 2.5, 2));
-            targetLum = 0.15 + flash * 0.85;
-            impulse = flash;
+            targetLum = (0.15 + flash * 0.85) * mobileLumBoost;
+            impulse = flash * (isMobile ? 1.3 : 1.0);  // Boost impulse on mobile for visibility
             // White flash
             tintR = lerp(180, 255, flash);
             tintG = lerp(160, 250, flash);
@@ -1914,7 +1953,7 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         // ─── SHOCKWAVE & REMNANT (T 11.5 - 16) ───
         else if (t < 16) {
             const remnantGrow = smoothstep(12, 16, t);
-            targetLum = 0.18 + remnantGrow * 0.12;
+            targetLum = (0.18 + remnantGrow * 0.12) * mobileLumBoost;
             // Nebula colors emerging
             tintR = lerp(200, 170, remnantGrow);
             tintG = lerp(180, 140, remnantGrow);
@@ -1926,15 +1965,15 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
                 // Neutron star - pulsar flashes
                 const pulsarRate = 1.5;
                 const pulse = 0.5 + 0.5 * Math.sin(t * pulsarRate * Math.PI * 2);
-                targetLum = 0.15 + 0.15 * pulse;
+                targetLum = (0.15 + 0.15 * pulse) * mobileLumBoost;
                 // Cool blue tint
                 tintR = 100; tintG = 140; tintB = 200;
             } else {
                 // Black hole - dark with occasional Einstein ring glint
                 const bhForm = smoothstep(16, 20, t);
-                targetLum = 0.12 * (1 - bhForm * 0.5);
-                // Occasional ring glint
-                targetLum += 0.08 * Math.pow(Math.sin(t * 0.8), 4) * bhForm;
+                targetLum = (0.12 * (1 - bhForm * 0.5)) * mobileLumBoost;
+                // Occasional ring glint - boosted on mobile
+                targetLum += 0.08 * Math.pow(Math.sin(t * 0.8), 4) * bhForm * mobileLumBoost;
                 // Dark with warm accretion tint
                 tintR = lerp(140, 180, bhForm * Math.sin(t * 0.3) * 0.5 + 0.5);
                 tintG = lerp(130, 120, bhForm);
@@ -2110,6 +2149,10 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
             setGlassVar(element, '--lum', fmt.lum);
             setGlassVar(element, '--impulse', fmt.impulse);
 
+            // MOBILE OPTIMIZATION: Only update critical 3 vars (lum, impulse, bh-strength)
+            // Mobile pseudo-elements only use these vars, skip all others to reduce DOM writes by 80%
+            if (isMobile) return;
+
             // Skip non-critical updates during BH phase to reduce DOM writes
             if (!shouldUpdateCSS && bhPhaseActive) return;
 
@@ -2175,7 +2218,17 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
 
     function resize() {
         // Lower DPR cap on mobile for better performance
-        const maxDpr = isMobile ? 1.0 : 1.5;
+        // MOBILE OPTIMIZATION: More aggressive DPR reduction for smaller screens
+        let maxDpr = 1.5;
+        if (isMobile) {
+            if (window.innerWidth < 400) {
+                maxDpr = 0.6;  // Very small screens (SE, mini)
+            } else if (window.innerWidth < 500) {
+                maxDpr = 0.75;  // Small phones
+            } else {
+                maxDpr = 1.0;  // Normal phones
+            }
+        }
         const dpr = Math.min(maxDpr, window.devicePixelRatio);
         width = Math.floor(window.innerWidth * dpr);
         height = Math.floor(window.innerHeight * dpr);
@@ -2187,6 +2240,14 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
             smoothMouse[0] = mouse[0] = width / 2;
             smoothMouse[1] = mouse[1] = height / 2;
         }
+
+        // Invalidate glass cache on resize (mobile orientation changes)
+        glassQueryStale = true;
+
+        // Clear stableRects cache - rects are invalid after resize
+        // WeakMap doesn't have clear(), but setting new instance is fine
+        // since the old elements may have moved/resized
+        glassElements.forEach(el => stableRects.delete(el));
 
         // Update content boxes on resize
         contentBoxes = queryContentBoxes();
@@ -2294,8 +2355,12 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         glContext.clear(glContext.COLOR_BUFFER_BIT);
         glContext.drawArrays(glContext.TRIANGLES, 0, 3);
 
-        // Update glass elements with adaptive lighting from canvas sampling
-        updateGlassAdaptive(t);
+        // Update glass elements with adaptive lighting
+        // PERFORMANCE: Mobile updates every 3rd frame (20fps visual), desktop every frame
+        const glassUpdateInterval = isMobile ? 3 : 1;
+        if (boxUpdateCounter % glassUpdateInterval === 0) {
+            updateGlassAdaptive(t);
+        }
 
         animationId = requestAnimationFrame(render);
     }
