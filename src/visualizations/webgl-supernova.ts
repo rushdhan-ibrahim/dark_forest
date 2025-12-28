@@ -483,6 +483,10 @@ vec3 explosion(vec2 p, float t) {
 // ══════════════════════════════════════════════════════════════
 
 vec3 nebula(vec2 p, float t, vec2 parallax) {
+    // Nebula only appears after explosion (t=10)
+    float nebulaVis = smoothstep(10.0, 12.0, t);
+    if (nebulaVis < 0.01) return vec3(0.0);
+
     vec2 q = (p + parallax * 0.06) * 0.55;
 
     // Domain warping for fluid-like motion
@@ -508,7 +512,7 @@ vec3 nebula(vec2 p, float t, vec2 parallax) {
     // Add bright ridge highlights
     col += vec3(0.8, 0.7, 0.9) * ridges * 0.15;
 
-    return col * dens * 0.6;
+    return col * dens * 0.6 * nebulaVis;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -836,7 +840,8 @@ vec2 gravitationalLens(vec2 uv, float strength, float time) {
     float r = length(uv);
     if (r < 0.001) return uv;
 
-    float rs = 0.08 * strength;
+    // Schwarzschild radius scaled down 50% for performance
+    float rs = 0.04 * strength;
     float rPhoton = rs * 1.5;
 
     // Radial deflection
@@ -880,7 +885,7 @@ vec2 secondaryLens(vec2 uv, float strength) {
     if (strength < 0.01) return uv;
 
     float r = length(uv);
-    float rs = 0.08 * strength;
+    float rs = 0.04 * strength;  // Scaled down 50%
 
     float wrapFactor = rs * rs / (r * r + rs * rs * 0.3);
     float ang = atan(uv.y, uv.x) + PI * wrapFactor * 2.5;
@@ -894,7 +899,7 @@ vec2 tertiaryLens(vec2 uv, float strength) {
     if (strength < 0.1) return uv;
 
     float r = length(uv);
-    float rs = 0.08 * strength;
+    float rs = 0.04 * strength;  // Scaled down 50%
 
     float wrapFactor = rs * rs / (r * r + rs * rs * 0.2);
     float ang = atan(uv.y, uv.x) + PI * 2.0 * wrapFactor * 3.0;
@@ -1120,9 +1125,14 @@ void main() {
     vec2 uv = (gl_FragCoord.xy - 0.5 * R) / R.y;
     vec2 screenUV = gl_FragCoord.xy / R;  // 0-1 screen coordinates
 
-    // Scale down supernova on mobile so it doesn't overwhelm the smaller screen
+    // ═══ COSMIC PHENOMENA SCALE ═══
+    // Scale factor for all stellar phenomena (progenitor, explosion, NS, BH)
+    // 2.2 = 55% size reduction for performance optimization
+    const float cosmicScale = 2.2;
+
+    // Additional mobile scale adjustment
     float mobileScale = mobile > 0.5 ? 1.35 : 1.0;
-    uv *= mobileScale;
+    uv *= cosmicScale * mobileScale;
 
     vec2 m = (M / R) * 2.0 - 1.0;
     m.x *= R.x / R.y;
