@@ -52,12 +52,10 @@ float fbm2(vec2 p) {
 }
 
 // Domain warping for fluid-like nebulae
+// PERFORMANCE OPTIMIZED: Reduced from 5 fbm2 calls to 3 fbm2 calls (40% reduction)
 float warp(vec2 p, float t) {
-    vec2 q = vec2(fbm2(p + vec2(0.0, 0.0)),
-                  fbm2(p + vec2(5.2, 1.3)));
-    vec2 r = vec2(fbm2(p + 4.0*q + vec2(1.7, 9.2) + 0.1*t),
-                  fbm2(p + 4.0*q + vec2(8.3, 2.8) + 0.08*t));
-    return fbm2(p + 3.5*r);
+    vec2 q = vec2(fbm2(p), fbm2(p + vec2(5.2, 1.3)));
+    return fbm2(p + 2.5 * q + t * 0.06);
 }
 
 // 2D rotation matrix
@@ -492,7 +490,8 @@ vec3 nebula(vec2 p, float t, vec2 parallax) {
     // Domain warping for fluid-like motion
     float w = warp(q * 0.8, t * 0.3);
 
-    float n1 = fbm3(q * 1.4 + t * 0.004);
+    // PERFORMANCE: fbm2 instead of fbm3 (saves 1 noise sample)
+    float n1 = fbm2(q * 1.4 + t * 0.004);
     float n2 = fbm2(q * 2.2 + 5.0 - t * 0.003);
     float n3 = fbm2(q * 0.9 + vec2(3.0, -2.0));
 
@@ -541,8 +540,8 @@ vec3 remnant(vec2 p, float t, float nebulaAge) {
     );
     q += (warpDisp - 0.5) * 0.18;
 
-    // Subtle filaments
-    float noiseVal = fbm3(q * 2.2 + 11.0);
+    // Subtle filaments - PERFORMANCE: fbm2 instead of fbm3
+    float noiseVal = fbm2(q * 2.2 + 11.0);
     float ridge = 1.0 - abs(2.0 * noiseVal - 1.0);
     ridge = pow(ridge, 1.8);
 
@@ -692,15 +691,15 @@ vec3 neutron(vec2 p, float t) {
 vec3 stars(vec2 p, float t, vec2 parallax) {
     vec3 col = vec3(0.0);
 
-    // Three parallax layers (reduced to 2 on mobile)
-    float maxLayers = mobile > 0.5 ? 2.0 : 3.0;
+    // PERFORMANCE: Reduced layers (2 desktop, 1 mobile) with higher density
+    float maxLayers = mobile > 0.5 ? 1.0 : 2.0;
 
-    for (float layer = 0.0; layer < 3.0; layer++) {
+    for (float layer = 0.0; layer < 2.0; layer++) {
         if (layer >= maxLayers) break;
 
-        float pStr = 0.02 + layer * 0.025;
-        float scale = 50.0 + layer * 45.0;
-        float density = 0.03 - layer * 0.008;
+        float pStr = 0.02 + layer * 0.03;
+        float scale = 45.0 + layer * 50.0;
+        float density = 0.038 - layer * 0.008;  // Increased base density
 
         vec2 sp = (p + parallax * pStr) * scale;
         vec2 id = floor(sp);
@@ -761,10 +760,11 @@ vec2 gravitationalWaves(vec2 uv, float t, float bhForm) {
     }
 
     // Ringdown waves (QNM ringing)
+    // PERFORMANCE: Reduced from 3 to 2 modes
     float ringdownStart = 4.0;
     float ringdownAge = elapsed - ringdownStart;
     if (ringdownAge > 0.0 && ringdownAge < 12.0) {
-        for (float mode = 0.0; mode < 3.0; mode++) {
+        for (float mode = 0.0; mode < 2.0; mode++) {
             float freq = 2.5 - mode * 0.6;
             float decay = 0.3 + mode * 0.15;
             float phase = mode * 1.5;
@@ -1076,10 +1076,28 @@ vec3 sampleSceneComplete(vec2 uv, float t) {
 vec3 sampleWithBlur(vec2 uv, float blurRadius) {
     vec3 total = vec3(0.0);
 
-    // Mobile: use 5-sample blur (center + cross pattern)
-    // Desktop: use 9-sample Gaussian blur kernel
+    // PERFORMANCE OPTIMIZED: Reduced sample counts
+    // Mobile: 3-sample (center + horizontal) - was 5
+    // Desktop: 5-sample cross pattern - was 9
     if (mobile > 0.5) {
-        // 5-sample cross pattern - much faster
+        // 3-sample horizontal blur - minimal but effective
+        float weights[3];
+        weights[0] = 0.5;   // center (dominant)
+        weights[1] = 0.25;  // left
+        weights[2] = 0.25;  // right
+
+        vec2 offsets[3];
+        offsets[0] = vec2(0.0, 0.0);
+        offsets[1] = vec2(-1.0, 0.0);
+        offsets[2] = vec2(1.0, 0.0);
+
+        for (int i = 0; i < 3; i++) {
+            vec2 sampleUV = uv + offsets[i] * blurRadius * 0.005;
+            vec3 s = sampleSceneComplete(sampleUV, T);
+            total += s * weights[i];
+        }
+    } else {
+        // 5-sample cross pattern for desktop - was 9-sample Gaussian
         float weights[5];
         weights[0] = 0.4;   // center
         weights[1] = 0.15;  // up
@@ -1096,23 +1114,6 @@ vec3 sampleWithBlur(vec2 uv, float blurRadius) {
 
         for (int i = 0; i < 5; i++) {
             vec2 sampleUV = uv + offsets[i] * blurRadius * 0.004;
-            vec3 s = sampleSceneComplete(sampleUV, T);
-            total += s * weights[i];
-        }
-    } else {
-        // Full 9-sample Gaussian for desktop
-        float weights[9];
-        weights[0] = 0.0625; weights[1] = 0.125; weights[2] = 0.0625;
-        weights[3] = 0.125;  weights[4] = 0.25;  weights[5] = 0.125;
-        weights[6] = 0.0625; weights[7] = 0.125; weights[8] = 0.0625;
-
-        vec2 offsets[9];
-        offsets[0] = vec2(-1.0, -1.0); offsets[1] = vec2(0.0, -1.0); offsets[2] = vec2(1.0, -1.0);
-        offsets[3] = vec2(-1.0,  0.0); offsets[4] = vec2(0.0,  0.0); offsets[5] = vec2(1.0,  0.0);
-        offsets[6] = vec2(-1.0,  1.0); offsets[7] = vec2(0.0,  1.0); offsets[8] = vec2(1.0,  1.0);
-
-        for (int i = 0; i < 9; i++) {
-            vec2 sampleUV = uv + offsets[i] * blurRadius * 0.003;
             vec3 s = sampleSceneComplete(sampleUV, T);
             total += s * weights[i];
         }
@@ -1494,14 +1495,12 @@ function queryContentBoxes(): ContentBox[] {
     // Query text boxes (Type 2)
     textBoxSelectors.forEach(selector => {
         document.querySelectorAll(selector).forEach(el => {
-            const rect = (el as HTMLElement).getBoundingClientRect();
-            // Only include if actually visible (not collapsed)
-            const style = window.getComputedStyle(el);
-            const isVisible = style.display !== 'none' &&
-                              style.visibility !== 'hidden' &&
-                              rect.height > 10;
+            const htmlEl = el as HTMLElement;
+            // PERFORMANCE: Using offsetHeight/offsetWidth instead of getComputedStyle
+            if (htmlEl.offsetHeight === 0 || htmlEl.offsetWidth === 0) return;
+            const rect = htmlEl.getBoundingClientRect();
 
-            if (isVisible &&
+            if (rect.height > 10 &&
                 rect.bottom > 0 && rect.top < viewportHeight &&
                 rect.right > 0 && rect.left < viewportWidth) {
                 boxes.push({
@@ -1636,11 +1635,12 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
 
     // ══════════════════════════════════════════════════════════════
     // CANVAS SAMPLING - Adaptive glass response to WebGL content
+    // PERFORMANCE OPTIMIZED: Reduced sample size and frequency
     // ══════════════════════════════════════════════════════════════
-    const SAMPLE_SIZE = 8;
+    const SAMPLE_SIZE = 4;  // Was 8 - 75% fewer pixels to read
     const sampleBuffer = new Uint8Array(SAMPLE_SIZE * SAMPLE_SIZE * 4);
     let sampleSkip = 0;
-    const sampleEvery = isMobile ? 8 : 4; // Sample less frequently on mobile
+    const sampleEvery = isMobile ? 12 : 6; // Was 8/4 - reduces GPU→CPU sync stalls
 
     // Smoothed values for glass physics
     let glassLum = 0;
@@ -1711,12 +1711,12 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         const viewportWidth = window.innerWidth;
 
         // Helper to check if element is visible and in viewport
+        // PERFORMANCE: Using offsetHeight/offsetWidth instead of getComputedStyle
         const isVisibleInViewport = (el: HTMLElement): boolean => {
+            // offsetHeight/offsetWidth are 0 for display:none or visibility:hidden ancestors
+            if (el.offsetHeight === 0 || el.offsetWidth === 0) return false;
             const rect = el.getBoundingClientRect();
-            const style = window.getComputedStyle(el);
-            return style.display !== 'none' &&
-                   style.visibility !== 'hidden' &&
-                   rect.height > 10 &&
+            return rect.height > 10 &&
                    rect.bottom > 0 && rect.top < viewportHeight &&
                    rect.right > 0 && rect.left < viewportWidth;
         };
@@ -2133,9 +2133,15 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         mouse[1] = (window.innerHeight - e.clientY) * sy;
     }
 
+    // PERFORMANCE: Debounced scroll handler to reduce DOM queries
+    let scrollTimeout: number | undefined;
     function handleScroll() {
-        // Update content boxes on scroll
-        contentBoxes = queryContentBoxes();
+        if (scrollTimeout !== undefined) {
+            clearTimeout(scrollTimeout);
+        }
+        scrollTimeout = window.setTimeout(() => {
+            contentBoxes = queryContentBoxes();
+        }, 100);  // 100ms debounce
     }
 
     function getTime(): number {
