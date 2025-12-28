@@ -5437,38 +5437,30 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
-   ADAPTIVE GLASS PHYSICS SYSTEM
+   DARK FOREST PANEL SYSTEM - STANDARDIZED GLASS PHYSICS
 
-   iOS-inspired glass panels that react to supernova/black hole light:
-   - Rim lighting responds to sampled background luminance
-   - Light direction tracks toward supernova position
-   - Chromatic aberration on edges
-   - Black hole gravitational effects (tidal stretching, redshift)
-   - Gravitational wave ripples through panel borders
+   Based on stardust reference implementation.
+   All content panels use the same light physics system.
+
+   Structure:
+   - .df-panel: Base class with CSS variables (applied via JS)
+   - .df-panel::before: Outer bloom glow
+   - .df-panel::after: Edge rim highlight
+
+   Physics modeled:
+   1. Rim lighting responds to sampled background luminance
+   2. Light direction tracks toward supernova position
+   3. Chromatic aberration on edges (prismatic fringe)
+   4. Black hole gravitational effects (tidal stretching, redshift)
+   5. Gravitational wave ripples through panel borders
    ══════════════════════════════════════════════════════════════ */
 
-/* Glass physics variables - updated by JavaScript during cosmic events */
-.collapsible,
-.collapsible-header,
-.collapsible-content,
-.collapsible-inner,
-blockquote,
-.card,
-.content-card,
-.visualization-container,
-.thought-experiment,
-.distinction-card,
-.equation-box,
-.interactive-box,
-.section-header,
-.hero-quote,
-.show-quote,
-.show-title,
-.ascii-interactive,
-.ascii-header,
-.ascii-content,
-.prose,
-footer {
+/* ═══════════════════════════════════════════════════════════════
+   GLASS ACTIVE CLASS - CSS VARIABLES & OVERLAY CONTAINER
+   Applied to elements via JavaScript during cosmic events.
+   Overlay divs are injected dynamically at event start.
+   ═══════════════════════════════════════════════════════════════ */
+.df-glass-active {
     /* Adaptive glass variables - updated by JS via canvas sampling */
     --lum: 0;           /* 0-1: sampled luminance behind element */
     --impulse: 0;       /* 0-1: rate of brightness change (flash detection) */
@@ -5490,451 +5482,468 @@ footer {
     --gw-intensity: 0;  /* 0-1: wave amplitude */
     --gw-phase: 0;      /* 0-1: wave front position */
 
-    /* Adaptive text colors - updated by JS based on luminance */
-    /* Light text on dark bg, dark text on bright bg */
+    /* Adaptive text colors */
     --text-main: rgba(255, 255, 255, 0.9);
     --text-body: rgba(255, 255, 255, 0.8);
     --text-mute: rgba(200, 195, 210, 0.7);
 
-    /* Dynamic shadows that cast away from light */
+    /* Dynamic shadows cast away from light */
     --shadow-x: 0px;
     --shadow-y: 2px;
     --shadow-blur: 6px;
     --shadow-a: 0.25;
 
-    /* Dynamic border color */
-    --border-color: rgba(200, 195, 215, 0.08);
-
-    /* Enable transforms */
+    /* Required for overlay positioning */
     position: relative;
+
+    /* Allow overlays to extend beyond panel bounds */
+    overflow: visible !important;
+
+    /* GPU acceleration */
     will-change: transform, filter;
-    transition: transform 0.3s ease-out, filter 0.4s ease-out, color 0.3s ease-out;
+
+    /* Smooth transitions */
+    transition: transform 0.3s ease-out, filter 0.4s ease-out;
 }
 
-/* ─── ADAPTIVE TEXT COLORS ───
-   Text darkens in response to bright light (like in stardust) */
-.collapsible-content.glass-active,
-blockquote.glass-active,
-.card.glass-active,
-.content-card.glass-active,
-.visualization-container.glass-active,
-.thought-experiment.glass-active,
-.distinction-card.glass-active,
-.equation-box.glass-active,
-.interactive-box.glass-active,
-.section-header.glass-active,
-footer.glass-active {
-    /* Dynamic directional shadow */
-    box-shadow:
-        var(--shadow-x) var(--shadow-y) var(--shadow-blur) rgba(0, 0, 0, var(--shadow-a)),
-        0 4px 16px rgba(0, 0, 0, 0.3);
-
-    /* Dynamic border glow */
-    border-color: var(--border-color);
+/* Ensure content stays above overlays */
+.df-glass-active > *:not(.df-glass-overlay) {
+    position: relative;
+    z-index: 40;
 }
 
-/* Apply adaptive text colors to headings */
-.collapsible-content.glass-active h1,
-.collapsible-content.glass-active h2,
-.collapsible-content.glass-active h3,
-.collapsible-content.glass-active h4,
-.collapsible.glass-active h3,
-.collapsible.glass-active h4,
-.collapsible-header.glass-active h3,
-.collapsible-header.glass-active h4,
-.collapsible-inner.glass-active h3,
-.collapsible-inner.glass-active h4,
-blockquote.glass-active h3,
-.card.glass-active h3,
-.thought-experiment.glass-active h3,
-.thought-experiment.glass-active h4,
-.distinction-card.glass-active h3,
-.interactive-box.glass-active h3,
-.interactive-box.glass-active h4,
-.show-quote.glass-active h3,
-.show-title.glass-active h3,
-.ascii-interactive.glass-active h3,
-.ascii-interactive.glass-active span,
-.ascii-header.glass-active span,
-.ascii-content.glass-active h3,
-.ascii-content.glass-active h4,
-.prose.glass-active h1,
-.prose.glass-active h2,
-.prose.glass-active h3 {
-    color: var(--text-main);
-    transition: color 0.3s ease-out;
-}
-
-/* Apply adaptive text colors to body text */
-.collapsible-content.glass-active p,
-.collapsible-content.glass-active li,
-.collapsible-content.glass-active span,
-.collapsible.glass-active p,
-.collapsible.glass-active li,
-.collapsible-header.glass-active p,
-.collapsible-inner.glass-active p,
-.collapsible-inner.glass-active li,
-blockquote.glass-active p,
-blockquote.glass-active cite,
-.card.glass-active p,
-.thought-experiment.glass-active p,
-.distinction-card.glass-active p,
-.interactive-box.glass-active p,
-.interactive-box.glass-active label,
-.show-quote.glass-active p,
-.show-quote.glass-active span,
-.show-title.glass-active p,
-.ascii-interactive.glass-active p,
-.ascii-header.glass-active p,
-.ascii-content.glass-active p,
-.ascii-content.glass-active div,
-.prose.glass-active p,
-.prose.glass-active li,
-.prose.glass-active span {
-    color: var(--text-body);
-    transition: color 0.3s ease-out;
-}
-
-/* Apply adaptive colors to muted/caption text */
-.collapsible-content.glass-active .caption,
-.collapsible-content.glass-active small,
-.collapsible-content.glass-active .muted,
-.collapsible.glass-active .caption,
-.collapsible.glass-active small,
-.collapsible-header.glass-active small,
-.collapsible-inner.glass-active small,
-.collapsible-inner.glass-active .caption,
-.card.glass-active small,
-.interactive-box.glass-active small,
-.show-quote.glass-active .speaker,
-.ascii-header.glass-active small,
-.ascii-content.glass-active small,
-.prose.glass-active small,
-.prose.glass-active .caption {
-    color: var(--text-mute);
-    transition: color 0.3s ease-out;
-}
-
-/* ─── OUTER BLOOM ───
-   Soft glow that extends beyond panel edges
-   Color-tinted by the background, intensity by luminance + impulse
-   Only applied to .glass-panel (innermost containers) to avoid stacking */
-.glass-panel::before {
-    content: '';
+/* ═══════════════════════════════════════════════════════════════
+   OVERLAY CONTAINER - Wrapper for all glass effect layers
+   Injected as first child of .df-glass-active elements
+   ═══════════════════════════════════════════════════════════════ */
+.df-glass-overlay {
     position: absolute;
-    inset: calc(-8px - var(--lum) * 20px - var(--impulse) * 35px);
-    border-radius: calc(12px + var(--lum) * 10px);
+    inset: 0;
+    border-radius: inherit;
     pointer-events: none;
-    z-index: -2;
+    overflow: visible;
+    z-index: 1;
+}
 
-    /* Layered glow effect with Doppler shift for black hole phase */
-    background:
-        /* Base bloom */
-        radial-gradient(
-            ellipse 100% 100% at center,
-            transparent 50%,
-            rgba(var(--tint-r), var(--tint-g), var(--tint-b), calc(var(--lum) * 0.12 + var(--impulse) * 0.25)) 70%,
-            rgba(var(--tint-r), var(--tint-g), var(--tint-b), calc(var(--lum) * 0.3 + var(--impulse) * 0.4)) 85%,
-            rgba(var(--tint-r), var(--tint-g), var(--tint-b), calc(var(--lum) * 0.15 + var(--impulse) * 0.2)) 95%,
-            transparent 100%
-        ),
-        /* Doppler shift: blue-shifted on left, red-shifted on right (BH phase) */
-        linear-gradient(
-            90deg,
-            rgba(150, 200, 255, calc(var(--bh-strength) * 0.2)) 0%,
-            transparent 30%,
-            transparent 70%,
-            rgba(255, 180, 140, calc(var(--bh-strength) * 0.2)) 100%
-        );
+/* ═══════════════════════════════════════════════════════════════
+   OVERLAY LAYERS - Continuously responsive to CSS variables
+   Each layer intensity is driven by --lum, --impulse, --bh-strength
+   Matching stardust_merged reference implementation
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Outer Bloom - Soft glow extending beyond panel edges
+   Color-tinted by background, intensity by luminance + impulse */
+.df-glass-bloom {
+    position: absolute;
+    inset: calc(-8px - var(--lum) * 25px - var(--impulse) * 40px);
+    border-radius: calc(28px + var(--lum) * 15px);
+    z-index: -2;
+    pointer-events: none;
+
+    /* Layered glow effect */
+    background: radial-gradient(
+        ellipse 100% 100% at center,
+        transparent 50%,
+        rgba(var(--tint-r), var(--tint-g), var(--tint-b), calc(var(--lum) * 0.15 + var(--impulse) * 0.3)) 70%,
+        rgba(var(--tint-r), var(--tint-g), var(--tint-b), calc(var(--lum) * 0.4 + var(--impulse) * 0.5)) 85%,
+        rgba(var(--tint-r), var(--tint-g), var(--tint-b), calc(var(--lum) * 0.2 + var(--impulse) * 0.25)) 95%,
+        transparent 100%
+    );
 
     /* Directional intensity - brighter on light-facing side */
     mask-image: radial-gradient(
         ellipse 130% 130% at
-            calc(50% + var(--light-x) * 25%)
-            calc(50% + var(--light-y) * 25%),
+            calc(50% + var(--light-x) * 30%)
+            calc(50% + var(--light-y) * 30%),
         white 0%,
         rgba(255,255,255, 0.6) 50%,
         rgba(255,255,255, 0.3) 100%
     );
     -webkit-mask-image: radial-gradient(
         ellipse 130% 130% at
-            calc(50% + var(--light-x) * 25%)
-            calc(50% + var(--light-y) * 25%),
+            calc(50% + var(--light-x) * 30%)
+            calc(50% + var(--light-y) * 30%),
         white 0%,
         rgba(255,255,255, 0.6) 50%,
         rgba(255,255,255, 0.3) 100%
     );
 
-    filter: blur(calc(4px + var(--lum) * 6px));
-    opacity: calc(var(--lum) * 1.2 + var(--impulse) * 1.5);
-    transition: inset 0.25s ease-out, opacity 0.25s ease-out, filter 0.25s ease-out;
+    filter: blur(calc(4px + var(--lum) * 8px + var(--bh-strength) * 4px));
+    /* Visible during: flash (--impulse), luminance (--lum), AND BH phase (accretion disk glow) */
+    opacity: calc(var(--lum) * 1.5 + var(--impulse) * 2 + var(--bh-strength) * 0.6);
+    transition: inset 0.3s ease-out, opacity 0.3s ease-out, filter 0.3s ease-out;
+    will-change: inset, opacity, filter;
 }
 
-/* ─── EDGE HIGHLIGHT BORDER ───
-   Sharp luminous line around the perimeter with chromatic aberration
-   Only applied to .glass-panel (innermost containers) to avoid stacking */
-.glass-panel::after {
-    content: '';
+/* Impulse Flash Burst - Extra dramatic bloom during rapid brightness changes */
+.df-glass-flash {
+    position: absolute;
+    inset: calc(-20px - var(--impulse) * 80px);
+    border-radius: calc(40px + var(--impulse) * 30px);
+    z-index: -1;
+    pointer-events: none;
+
+    /* Explosive bloom */
+    background: radial-gradient(
+        ellipse 100% 100% at center,
+        transparent 40%,
+        rgba(255, 250, 240, calc(var(--impulse) * 0.4)) 60%,
+        rgba(255, 240, 220, calc(var(--impulse) * 0.6)) 75%,
+        rgba(255, 220, 180, calc(var(--impulse) * 0.3)) 90%,
+        transparent 100%
+    );
+
+    filter: blur(calc(10px + var(--impulse) * 20px));
+    opacity: var(--impulse);
+    transition: inset 0.15s ease-out, opacity 0.15s ease-out;
+    will-change: inset, opacity;
+}
+
+/* Edge Rim - Sharp luminous line with chromatic aberration */
+.df-glass-edge {
     position: absolute;
     inset: -2px;
     border-radius: inherit;
-    pointer-events: none;
     z-index: -1;
+    pointer-events: none;
 
     /* Multi-layer rim effect */
     background:
-        /* Hot white core edge - follows light direction */
+        /* Hot white core edge - follows light */
         linear-gradient(
             calc(var(--light-y) * -90deg + var(--light-x) * 90deg),
-            rgba(255, 255, 255, calc(var(--lum) * 0.7 + var(--impulse) * 0.8)) 0%,
-            rgba(255, 255, 255, calc(var(--lum) * 0.25)) 30%,
+            rgba(255, 255, 255, calc(var(--lum) * 0.9 + var(--impulse) * 1.0)) 0%,
+            rgba(255, 255, 255, calc(var(--lum) * 0.3)) 30%,
             transparent 50%,
-            rgba(255, 255, 255, calc(var(--lum) * 0.08)) 70%,
-            rgba(255, 255, 255, calc(var(--lum) * 0.3 + var(--impulse) * 0.25)) 100%
+            rgba(255, 255, 255, calc(var(--lum) * 0.1)) 70%,
+            rgba(255, 255, 255, calc(var(--lum) * 0.4 + var(--impulse) * 0.3)) 100%
         ),
-        /* Chromatic fringe - prismatic color separation (rotates with GW phase, brightens with GW intensity) */
+        /* Chromatic fringe - prismatic color separation */
         conic-gradient(
             from calc(var(--light-x) * 90deg + 90deg + var(--gw-phase) * 180deg),
-            rgba(255, 180, 120, calc((var(--lum) + var(--gw-intensity)) * 0.5)) 0deg,
-            rgba(255, 220, 180, calc((var(--lum) + var(--gw-intensity)) * 0.4)) 30deg,
-            rgba(255, 255, 255, calc((var(--lum) + var(--gw-intensity)) * 0.6)) 60deg,
-            rgba(200, 230, 255, calc((var(--lum) + var(--gw-intensity)) * 0.4)) 90deg,
-            rgba(150, 180, 255, calc((var(--lum) + var(--gw-intensity)) * 0.5)) 120deg,
-            rgba(180, 150, 220, calc((var(--lum) + var(--gw-intensity)) * 0.35)) 150deg,
-            rgba(150, 180, 255, calc((var(--lum) + var(--gw-intensity)) * 0.4)) 180deg,
-            rgba(200, 230, 255, calc((var(--lum) + var(--gw-intensity)) * 0.35)) 210deg,
-            rgba(255, 255, 255, calc((var(--lum) + var(--gw-intensity)) * 0.5)) 240deg,
-            rgba(255, 220, 180, calc((var(--lum) + var(--gw-intensity)) * 0.4)) 270deg,
-            rgba(255, 180, 120, calc((var(--lum) + var(--gw-intensity)) * 0.5)) 300deg,
-            rgba(255, 200, 150, calc((var(--lum) + var(--gw-intensity)) * 0.4)) 330deg,
-            rgba(255, 180, 120, calc((var(--lum) + var(--gw-intensity)) * 0.5)) 360deg
+            rgba(255, 180, 120, calc(var(--lum) * 0.6)) 0deg,
+            rgba(255, 220, 180, calc(var(--lum) * 0.5)) 30deg,
+            rgba(255, 255, 255, calc(var(--lum) * 0.7)) 60deg,
+            rgba(200, 230, 255, calc(var(--lum) * 0.5)) 90deg,
+            rgba(150, 180, 255, calc(var(--lum) * 0.6)) 120deg,
+            rgba(180, 150, 220, calc(var(--lum) * 0.4)) 150deg,
+            rgba(150, 180, 255, calc(var(--lum) * 0.5)) 180deg,
+            rgba(200, 230, 255, calc(var(--lum) * 0.4)) 210deg,
+            rgba(255, 255, 255, calc(var(--lum) * 0.6)) 240deg,
+            rgba(255, 220, 180, calc(var(--lum) * 0.5)) 270deg,
+            rgba(255, 180, 120, calc(var(--lum) * 0.6)) 300deg,
+            rgba(255, 200, 150, calc(var(--lum) * 0.5)) 330deg,
+            rgba(255, 180, 120, calc(var(--lum) * 0.6)) 360deg
         ),
         /* Base warm/cool split */
         linear-gradient(
             135deg,
-            rgba(255, 200, 150, calc(var(--lum) * 0.25)) 0%,
+            rgba(255, 200, 150, calc(var(--lum) * 0.3)) 0%,
             transparent 40%,
             transparent 60%,
-            rgba(150, 200, 255, calc(var(--lum) * 0.25)) 100%
+            rgba(150, 200, 255, calc(var(--lum) * 0.3)) 100%
         );
 
-    /* Mask to show only as thin rim - rectangular frame using 4 edge strips */
-    mask-image:
-        linear-gradient(black, black),
-        linear-gradient(black, black),
-        linear-gradient(black, black),
-        linear-gradient(black, black);
-    mask-size: 100% 3px, 100% 3px, 3px 100%, 3px 100%;
-    mask-position: top, bottom, left, right;
-    mask-repeat: no-repeat;
-    -webkit-mask-image:
-        linear-gradient(black, black),
-        linear-gradient(black, black),
-        linear-gradient(black, black),
-        linear-gradient(black, black);
-    -webkit-mask-size: 100% 3px, 100% 3px, 3px 100%, 3px 100%;
-    -webkit-mask-position: top, bottom, left, right;
-    -webkit-mask-repeat: no-repeat;
+    /* Mask to show only as thin rim */
+    mask-image: radial-gradient(
+        ellipse calc(100% - 4px) calc(100% - 4px) at center,
+        transparent 97%,
+        black 100%
+    );
+    -webkit-mask-image: radial-gradient(
+        ellipse calc(100% - 4px) calc(100% - 4px) at center,
+        transparent 97%,
+        black 100%
+    );
 
     filter: blur(0.5px);
-    opacity: calc(0.4 + var(--lum) * 1.2 + var(--impulse) * 0.8);
-    transition: opacity 0.2s ease-out;
+    /* Base visibility + luminance + impulse + BH accretion disk reflection */
+    opacity: calc(0.5 + var(--lum) * 1.5 + var(--impulse) * 1.0 + var(--bh-strength) * 0.8);
+    transition: opacity 0.25s ease-out;
+    will-change: opacity;
 }
 
-/* ─── IMPULSE FLASH BURST ───
-   Extra dramatic bloom during rapid brightness changes */
-.collapsible-content.glass-active,
-blockquote.glass-active,
-.card.glass-active,
-.content-card.glass-active,
-.thought-experiment.glass-active,
-.distinction-card.glass-active,
-.interactive-box.glass-active,
-.visualization-container.glass-active {
-    /* Enhanced backdrop during cosmic events */
-    backdrop-filter: blur(calc(2px + var(--lum) * 8px)) saturate(calc(1.0 + var(--lum) * 0.3)) brightness(calc(1.0 + var(--lum) * 0.1));
-    -webkit-backdrop-filter: blur(calc(2px + var(--lum) * 8px)) saturate(calc(1.0 + var(--lum) * 0.3)) brightness(calc(1.0 + var(--lum) * 0.1));
+/* Warm afterglow - visible during remnant/BH phases
+   During BH: accretion disk provides amber glow from above */
+.df-glass-warm {
+    position: absolute;
+    inset: calc(-5px - var(--lum) * 15px - var(--bh-strength) * 10px);
+    border-radius: inherit;
+    z-index: 25;
+    pointer-events: none;
+
+    background: radial-gradient(ellipse 100% 90% at 50% 20%,
+        rgba(255,245,220, calc(var(--lum) * 0.3 + var(--bh-strength) * 0.4)) 0%,
+        rgba(255,200,140, calc(var(--lum) * 0.2 + var(--bh-strength) * 0.3)) 40%,
+        rgba(255,160,100, calc(var(--lum) * 0.1 + var(--bh-strength) * 0.15)) 70%,
+        transparent 100%
+    );
+
+    /* Visible during luminance AND BH phase (accretion disk glow from above) */
+    opacity: calc(var(--lum) * 0.8 + var(--bh-strength) * 0.7);
+    transition: opacity 0.4s ease-out, inset 0.4s ease-out;
+    will-change: opacity, inset;
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* Nebula tint - rose/purple from remnant, Doppler from BH */
+.df-glass-nebula {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    z-index: 23;
+    pointer-events: none;
+
+    background:
+        /* Base nebula tint */
+        linear-gradient(135deg,
+            rgba(255,180,180, calc(var(--lum) * 0.15)) 0%,
+            rgba(200,160,200, calc(var(--lum) * 0.1)) 50%,
+            rgba(160,200,220, calc(var(--lum) * 0.08)) 100%
+        ),
+        /* Doppler shift during BH: blue-left, red-right */
+        linear-gradient(90deg,
+            rgba(150, 200, 255, calc(var(--bh-strength) * 0.25)) 0%,
+            transparent 30%,
+            transparent 70%,
+            rgba(255, 180, 140, calc(var(--bh-strength) * 0.25)) 100%
+        );
+
+    opacity: calc(var(--lum) * 0.6 + var(--bh-strength) * 0.4);
+    transition: opacity 0.5s ease-out;
+    will-change: opacity;
+}
+
+/* Caustic - Light focusing spots */
+.df-glass-caustic {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    z-index: 22;
+    pointer-events: none;
+
+    background:
+        radial-gradient(ellipse 30% 40% at 20% 30%, rgba(255,255,255, calc(var(--lum) * 0.4)) 0%, transparent 70%),
+        radial-gradient(ellipse 25% 35% at 75% 25%, rgba(255,255,255, calc(var(--lum) * 0.3)) 0%, transparent 70%),
+        radial-gradient(ellipse 20% 30% at 50% 70%, rgba(255,255,255, calc(var(--lum) * 0.25)) 0%, transparent 70%);
+
+    opacity: calc(var(--lum) * 0.8 + var(--impulse) * 0.5);
+    transition: opacity 0.3s ease-out;
+    will-change: opacity;
+}
+
+/* Highlight - Top chromatic line */
+.df-glass-highlight {
+    position: absolute;
+    top: 0;
+    left: 10%;
+    right: 10%;
+    height: calc(2px + var(--lum) * 2px);
+    border-radius: 2px;
+    z-index: 35;
+    pointer-events: none;
+
+    background: linear-gradient(90deg,
+        rgba(255,200,150, calc(var(--lum) * 0.5)) 0%,
+        rgba(255,255,255, calc(var(--lum) * 0.9)) 50%,
+        rgba(150,200,255, calc(var(--lum) * 0.5)) 100%
+    );
+
+    filter: blur(1px);
+    opacity: calc(var(--lum) * 0.8 + var(--impulse) * 0.6);
+    transition: opacity 0.3s ease-out, height 0.3s ease-out;
+    will-change: opacity, height;
+}
+
+/* Noise - Subtle texture overlay (always visible) */
+.df-glass-noise {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    z-index: 10;
+    pointer-events: none;
+
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.025;
+    mix-blend-mode: overlay;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TEXT STYLING - Adaptive colors responding to light
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Headings */
+.df-glass-active h1, .df-glass-active h2, .df-glass-active h3, .df-glass-active h4,
+.df-glass-active [class*="title"], .df-glass-active .header-text {
+    color: var(--text-main);
+    text-shadow:
+        var(--shadow-x) var(--shadow-y) var(--shadow-blur) rgba(0, 0, 0, var(--shadow-a)),
+        0 0 20px rgba(var(--tint-r), var(--tint-g), var(--tint-b), calc(var(--lum) * 0.3));
+    transition: color 0.6s ease-out, text-shadow 0.4s ease-out;
+}
+
+/* Body text */
+.df-glass-active p, .df-glass-active li, .df-glass-active span:not([class*="icon"]),
+.df-glass-active label, .df-glass-active div:not([class]) {
+    color: var(--text-body);
+    text-shadow:
+        var(--shadow-x) var(--shadow-y) calc(var(--shadow-blur) * 0.7) rgba(0, 0, 0, var(--shadow-a));
+    transition: color 0.6s ease-out, text-shadow 0.4s ease-out;
+}
+
+/* Muted/caption text */
+.df-glass-active small, .df-glass-active .caption, .df-glass-active .muted,
+.df-glass-active cite, .df-glass-active .speaker {
+    color: var(--text-mute);
+    text-shadow:
+        var(--shadow-x) var(--shadow-y) calc(var(--shadow-blur) * 0.5) rgba(0, 0, 0, calc(var(--shadow-a) * 0.7));
+    transition: color 0.6s ease-out, text-shadow 0.4s ease-out;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    BLACK HOLE GRAVITATIONAL EFFECTS
-
-   Physics:
-   - Elements below the black hole experience tidal forces
-   - Light escaping gravity well is redshifted
-   - Text/content stretches toward the singularity
-   ══════════════════════════════════════════════════════════════ */
+   Applied to panels with .df-glass-active class during BH phase
+   ═══════════════════════════════════════════════════════════════ */
 
 /* Gravitational redshift tint */
-.collapsible.glass-active,
-.collapsible-header.glass-active,
-.collapsible-content.glass-active,
-.collapsible-inner.glass-active,
-blockquote.glass-active,
-.card.glass-active,
-.content-card.glass-active,
-.thought-experiment.glass-active,
-.distinction-card.glass-active,
-.interactive-box.glass-active,
-.visualization-container.glass-active,
-.show-quote.glass-active,
-.show-title.glass-active,
-.ascii-interactive.glass-active,
-.ascii-header.glass-active,
-.ascii-content.glass-active,
-.prose.glass-active {
+.df-glass-active {
     filter: hue-rotate(calc(var(--bh-redshift) * -12deg))
             saturate(calc(1 + var(--bh-strength) * 0.15));
 }
 
-/* Tidal stretching - elements are pulled toward black hole */
-.collapsible.glass-active,
-.collapsible-header.glass-active,
-.collapsible-content.glass-active,
-.collapsible-inner.glass-active,
-blockquote.glass-active,
-.card.glass-active,
-.content-card.glass-active,
-.thought-experiment.glass-active,
-.distinction-card.glass-active,
-.interactive-box.glass-active,
-.visualization-container.glass-active,
-.show-quote.glass-active,
-.show-title.glass-active,
-.ascii-interactive.glass-active,
-.ascii-header.glass-active,
-.ascii-content.glass-active,
-.prose.glass-active {
+/* Tidal stretching - panel pulled toward black hole */
+.df-glass-active {
     transform:
         perspective(800px)
         rotateX(calc(var(--bh-strength) * 2deg))
+        scaleY(calc(1 + var(--bh-strength) * 0.03))
+        translateY(calc(var(--bh-strength) * -2px))
+        scale(calc(1 + var(--gw-intensity) * 0.003));
+    transform-origin: center bottom;
+}
+
+/* Text stretches more than container */
+.df-glass-active h1, .df-glass-active h2, .df-glass-active h3 {
+    transform:
         scaleY(calc(1 + var(--bh-strength) * 0.04))
         translateY(calc(var(--bh-strength) * -3px));
     transform-origin: center bottom;
 }
 
-/* Text inside stretches more */
-.collapsible.glass-active p,
-.collapsible.glass-active h3,
-.collapsible-header.glass-active h3,
-.collapsible-header.glass-active h4,
-.collapsible-content.glass-active p,
-.collapsible-content.glass-active h3,
-.collapsible-inner.glass-active p,
-.collapsible-inner.glass-active h3,
-blockquote.glass-active p,
-.card.glass-active p,
-.card.glass-active h3,
-.content-card.glass-active p,
-.content-card.glass-active h3,
-.thought-experiment.glass-active p,
-.thought-experiment.glass-active h3,
-.thought-experiment.glass-active h4,
-.distinction-card.glass-active p,
-.distinction-card.glass-active h3,
-.interactive-box.glass-active p,
-.interactive-box.glass-active h3,
-.interactive-box.glass-active h4,
-.visualization-container.glass-active p,
-.visualization-container.glass-active h3,
-.show-quote.glass-active p,
-.show-quote.glass-active span,
-.show-title.glass-active h3,
-.show-title.glass-active p,
-.ascii-interactive.glass-active p,
-.ascii-interactive.glass-active span,
-.ascii-header.glass-active span,
-.ascii-header.glass-active p,
-.ascii-content.glass-active p,
-.ascii-content.glass-active div,
-.prose.glass-active p,
-.prose.glass-active h3 {
+.df-glass-active p, .df-glass-active li {
     transform: scaleY(calc(1 + var(--bh-strength) * 0.02));
-    transition: transform 0.5s ease-out;
+    transform-origin: center bottom;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   BLACK HOLE SPECIFIC OVERLAY EFFECTS
+   Additional effects for BH phase (Einstein ring, Doppler bleeding)
+   ═══════════════════════════════════════════════════════════════ */
 
-/* ══════════════════════════════════════════════════════════════
-   GRAVITATIONAL WAVE RIM EFFECTS
-
-   Physics:
-   - GW passes through panel, causing spacetime distortion
-   - Rim briefly brightens as wave front crosses
-   - Creates pulsing/breathing effect on the edge
-   ══════════════════════════════════════════════════════════════ */
-
-/* GW pulse affects border width and scale */
-.collapsible.glass-active,
-.collapsible-header.glass-active,
-.collapsible-content.glass-active,
-.collapsible-inner.glass-active,
-blockquote.glass-active,
-.card.glass-active,
-.content-card.glass-active,
-.thought-experiment.glass-active,
-.distinction-card.glass-active,
-.interactive-box.glass-active,
-.visualization-container.glass-active,
-.show-quote.glass-active,
-.show-title.glass-active,
-.ascii-interactive.glass-active,
-.ascii-header.glass-active,
-.ascii-content.glass-active,
-.prose.glass-active {
-    /* Subtle scale breathing from spacetime strain */
-    transform: scale(calc(1 + var(--gw-intensity) * 0.004));
-}
-
-
-/* ─── EINSTEIN RING REFLECTION ───
-   When BH active, top edge catches the bright ring above */
-.glass-panel .glass-einstein-ring {
+/* Einstein ring reflection on top edge
+   The bright accretion disk rim reflects on the top of glass panels
+   Creates warm amber glow that intensifies with BH strength */
+.df-glass-active.bh-active::after {
+    content: '';
     position: absolute;
-    top: -3px;
-    left: 10%;
-    right: 10%;
-    height: calc(6px + var(--bh-strength) * 10px);
+    top: calc(-4px - var(--bh-strength) * 8px);
+    left: 5%;
+    right: 5%;
+    height: calc(12px + var(--bh-strength) * 20px);
     border-radius: 50%;
-    pointer-events: none;
-    z-index: 10;
-
-    /* Warm glow from Einstein ring */
-    background: radial-gradient(
-        ellipse 100% 200% at 50% 100%,
-        rgba(255, 200, 140, calc(var(--bh-strength) * 0.7)) 0%,
-        rgba(255, 180, 120, calc(var(--bh-strength) * 0.4)) 30%,
-        rgba(255, 150, 100, calc(var(--bh-strength) * 0.2)) 60%,
+    background: radial-gradient(ellipse 100% 200% at 50% 100%,
+        rgba(255,230,180, calc(var(--bh-strength) * 1.0)) 0%,
+        rgba(255,200,140, calc(var(--bh-strength) * 0.8)) 30%,
+        rgba(255,150,100, calc(var(--bh-strength) * 0.4)) 60%,
         transparent 100%
     );
-
-    filter: blur(calc(2px + var(--bh-strength) * 3px));
+    box-shadow:
+        0 calc(-2px - var(--bh-strength) * 10px) calc(20px + var(--bh-strength) * 30px) rgba(255,200,140, calc(var(--bh-strength) * 0.5)),
+        0 calc(-1px - var(--bh-strength) * 5px) calc(8px + var(--bh-strength) * 15px) rgba(255,230,180, calc(var(--bh-strength) * 0.6));
+    filter: blur(calc(3px + var(--bh-strength) * 6px));
     opacity: var(--bh-strength);
-    transition: opacity 0.4s ease-out, height 0.4s ease-out;
+    pointer-events: none;
+    z-index: 45;
 }
 
-/* ─── MOBILE OPTIMIZATIONS ─── */
+/* Doppler color bleeding on sides (blueshifted left, redshifted right) */
+.df-glass-active.bh-active .df-glass-overlay::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(90deg,
+        rgba(150,200,255, calc(var(--bh-strength) * 0.2)) 0%,
+        transparent 30%,
+        transparent 70%,
+        rgba(255,180,140, calc(var(--bh-strength) * 0.2)) 100%
+    );
+    pointer-events: none;
+}
+
+/* Gravitational wave pulse ripple */
+.df-glass-active.bh-active .df-glass-overlay::after {
+    content: '';
+    position: absolute;
+    inset: calc(-20px - var(--gw-intensity) * 40px);
+    border-radius: 40px;
+    background: radial-gradient(
+        ellipse 150% 100% at 50% calc(-20% + var(--gw-phase) * 120%),
+        rgba(180,150,255, calc(var(--gw-intensity) * 0.3)) 0%,
+        rgba(150,180,255, calc(var(--gw-intensity) * 0.15)) 15%,
+        transparent 30%
+    );
+    pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BACKDROP ENHANCEMENT - Glass blur during cosmic events
+   Responds to luminance AND black hole phase
+   ═══════════════════════════════════════════════════════════════ */
+.df-glass-active {
+    backdrop-filter: blur(calc(1px + var(--lum) * 6px + var(--bh-strength) * 4px))
+                     saturate(calc(1.0 + var(--lum) * 0.25 + var(--bh-strength) * 0.3))
+                     brightness(calc(1.0 + var(--lum) * 0.08))
+                     hue-rotate(calc(var(--bh-redshift) * -8deg));
+    -webkit-backdrop-filter: blur(calc(1px + var(--lum) * 6px + var(--bh-strength) * 4px))
+                             saturate(calc(1.0 + var(--lum) * 0.25 + var(--bh-strength) * 0.3))
+                             brightness(calc(1.0 + var(--lum) * 0.08))
+                             hue-rotate(calc(var(--bh-redshift) * -8deg));
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE OPTIMIZATIONS
+   Reduce overlay complexity for performance
+   ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-    /* Reduce blur for performance */
-    .glass-panel::before {
-        filter: blur(calc(2px + var(--lum) * 3px));
+    /* Reduce bloom expansion on mobile */
+    .df-glass-bloom {
+        inset: calc(-4px - var(--lum) * 12px - var(--impulse) * 20px);
+        filter: blur(calc(3px + var(--lum) * 4px));
     }
 
-    /* Simplify rim effect */
-    .glass-panel::after {
-        /* Single gradient instead of layered */
-        background: linear-gradient(
-            calc(var(--light-y) * -90deg + var(--light-x) * 90deg),
-            rgba(255, 255, 255, calc(var(--lum) * 0.6 + var(--impulse) * 0.6)) 0%,
-            transparent 40%,
-            transparent 60%,
-            rgba(255, 255, 255, calc(var(--lum) * 0.3)) 100%
-        );
+    /* Reduce flash expansion on mobile */
+    .df-glass-flash {
+        inset: calc(-10px - var(--impulse) * 40px);
+        filter: blur(calc(6px + var(--impulse) * 10px));
     }
 
-    /* Reduce tidal stretching on all glass-active elements */
-    .glass-active {
+    /* Reduce warm glow on mobile */
+    .df-glass-warm {
+        inset: calc(-3px - var(--lum) * 8px);
+    }
+
+    /* Skip caustic and highlight on mobile for performance */
+    .df-glass-caustic,
+    .df-glass-highlight {
+        display: none;
+    }
+
+    /* Reduce gravitational effects */
+    .df-glass-active {
         transform:
-            scaleY(calc(1 + var(--bh-strength) * 0.02))
-            translateY(calc(var(--bh-strength) * -2px));
+            scaleY(calc(1 + var(--bh-strength) * 0.015))
+            translateY(calc(var(--bh-strength) * -1px));
+        backdrop-filter: blur(calc(1px + var(--lum) * 3px));
+        -webkit-backdrop-filter: blur(calc(1px + var(--lum) * 3px));
     }
 }

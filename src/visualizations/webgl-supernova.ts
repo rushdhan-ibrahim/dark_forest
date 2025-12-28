@@ -1,6 +1,8 @@
 // WebGL-based supernova renderer
 // Renders supernova as a background effect that interacts with page content
 
+import { startCosmicAudio, stopCosmicAudio } from '../audio/cosmic';
+
 // Maximum number of content boxes we can track for occlusion
 const MAX_CONTENT_BOXES = 12;
 
@@ -47,6 +49,21 @@ float fbm3(vec2 p) {
 
 float fbm2(vec2 p) {
     return n(p) * 0.65 + n(p * 2.0) * 0.35;
+}
+
+// Domain warping for fluid-like nebulae
+float warp(vec2 p, float t) {
+    vec2 q = vec2(fbm2(p + vec2(0.0, 0.0)),
+                  fbm2(p + vec2(5.2, 1.3)));
+    vec2 r = vec2(fbm2(p + 4.0*q + vec2(1.7, 9.2) + 0.1*t),
+                  fbm2(p + 4.0*q + vec2(8.3, 2.8) + 0.08*t));
+    return fbm2(p + 3.5*r);
+}
+
+// 2D rotation matrix
+mat2 rot2D(float a) {
+    float c = cos(a), s = sin(a);
+    return mat2(c, -s, s, c);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -462,7 +479,40 @@ vec3 explosion(vec2 p, float t) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// REMNANT NEBULA - Subtle filamentary structure
+// NEBULA - Soft elliptical clouds with domain warping (background)
+// ══════════════════════════════════════════════════════════════
+
+vec3 nebula(vec2 p, float t, vec2 parallax) {
+    vec2 q = (p + parallax * 0.06) * 0.55;
+
+    // Domain warping for fluid-like motion
+    float w = warp(q * 0.8, t * 0.3);
+
+    float n1 = fbm3(q * 1.4 + t * 0.004);
+    float n2 = fbm2(q * 2.2 + 5.0 - t * 0.003);
+    float n3 = fbm2(q * 0.9 + vec2(3.0, -2.0));
+
+    // Mix warped and regular noise for organic feel
+    float dens = pow(n1, 2.0) * 0.4 + pow(n2, 2.3) * 0.25 + pow(n3, 2.5) * 0.15;
+    dens += pow(w, 2.2) * 0.2; // Add warped layer
+
+    // Highlight ridges in the warped noise (volumetric feel)
+    float ridges = smoothstep(0.5, 0.7, w);
+
+    // Blend nebula colors
+    vec3 col = purple * 0.4;
+    col = mix(col, rose * 0.35, n1);
+    col = mix(col, teal * 0.3, n2 * 0.6);
+    col = mix(col, blue * 0.25, n3 * 0.4);
+
+    // Add bright ridge highlights
+    col += vec3(0.8, 0.7, 0.9) * ridges * 0.15;
+
+    return col * dens * 0.6;
+}
+
+// ══════════════════════════════════════════════════════════════
+// REMNANT NEBULA - Subtle filamentary structure with fluid motion
 // ══════════════════════════════════════════════════════════════
 
 vec3 remnant(vec2 p, float t, float nebulaAge) {
@@ -476,49 +526,68 @@ vec3 remnant(vec2 p, float t, float nebulaAge) {
     float shellR = 0.06 + 0.9 * (1.0 - exp(-te * 0.15));
     float shellW = 0.10 + 0.015 * smoothstep(0.0, 10.0, te);
 
+    // Fluid domain warping
     vec2 q = p;
-    vec2 warp = vec2(
+    float fluidWarp = warp(q * 1.2, te * 0.2);
+
+    // Additional displacement
+    vec2 warpDisp = vec2(
         fbm2(q * 1.0 + vec2(17.0, te * 0.03)),
         fbm2(q * 1.0 + vec2(43.0, -te * 0.02))
     );
-    q += (warp - 0.5) * 0.18;
+    q += (warpDisp - 0.5) * 0.18;
 
+    // Subtle filaments
     float noiseVal = fbm3(q * 2.2 + 11.0);
     float ridge = 1.0 - abs(2.0 * noiseVal - 1.0);
     ridge = pow(ridge, 1.8);
 
+    // Volumetric ridge highlights from fluid warp
+    float fluidRidges = smoothstep(0.5, 0.75, fluidWarp);
+
     float shell = exp(-pow((r - shellR) / shellW, 2.0));
     float interior = exp(-r * r / ((shellR * 1.1 + 0.15) * (shellR * 1.1 + 0.15)));
 
+    // Soft clouds
     float clouds = fbm2(q * 0.7 + 23.0 + te * 0.015);
     clouds = pow(clouds, 2.5);
 
+    // Rayleigh-Taylor fingers
     float fingers = n(vec2(th * 5.0 + 5.0, r * 4.0 - te * 0.2));
     fingers = pow(1.0 - abs(2.0 * fingers - 1.0), 2.0);
 
+    // Combine density layers
     float density = 0.0;
     density += shell * (0.5 + 0.35 * ridge);
     density += interior * (0.15 + 0.2 * pow(noiseVal, 1.5));
     density += interior * clouds * 0.2;
+    density += interior * fluidWarp * 0.15; // Add fluid contribution
     density *= (0.85 + 0.2 * fingers);
     density *= exp(-te * 0.025);
 
+    // Astrophotography colors
     vec3 H_alpha = rose * 1.1;
     vec3 O_III = teal * 1.2;
     vec3 violet = purple * 1.2;
     vec3 dustCol = dust * 0.7;
 
+    // Mix based on noise and position
     float mixHO = smoothstep(0.3, 0.7, noiseVal);
     vec3 col = mix(H_alpha, O_III, mixHO);
     col = mix(col, violet, 0.2 * ridge);
     col = mix(col, dustCol, 0.3 * smoothstep(shellR - 0.05, shellR + 0.15, r));
+
+    // Volumetric ridge highlights from fluid warping
+    col += vec3(0.9, 0.85, 1.0) * fluidRidges * 0.2 * interior;
+
+    // Soft blue interior
     col += blue * 0.15 * interior * (1.0 - r * 2.0);
 
     return col * density * appear;
 }
 
 // ══════════════════════════════════════════════════════════════
-// NEUTRON STAR - Rapid flickering core
+// NEUTRON STAR - Rapid flickering core with precessing lighthouse beams
 // ══════════════════════════════════════════════════════════════
 
 vec3 neutron(vec2 p, float t) {
@@ -526,37 +595,87 @@ vec3 neutron(vec2 p, float t) {
     float appear = smoothstep(16.0, 20.0, t);
     if (appear < 0.01) return vec3(0.0);
 
+    // Tiny brilliant core
     float core = exp(-r * r * 12000.0);
 
-    float flicker1 = sin(t * 8.0) * 0.25 + 0.75;
-    float flicker2 = sin(t * 13.0 + 0.5) * 0.2 + 0.8;
-    float flicker3 = sin(t * 21.0 + 1.2) * 0.15 + 0.85;
-    float flicker4 = sin(t * 5.0 + 2.0) * 0.1 + 0.9;
+    // Slower, more stately flickering
+    float flicker1 = sin(t * 3.0) * 0.2 + 0.8;
+    float flicker2 = sin(t * 5.0 + 0.5) * 0.15 + 0.85;
+    float flicker3 = sin(t * 7.0 + 1.2) * 0.1 + 0.9;
+    float flicker4 = sin(t * 1.5 + 2.0) * 0.1 + 0.9;
     float flicker = flicker1 * flicker2 * flicker3 * flicker4;
 
-    float noiseFlicker = 0.85 + 0.15 * n(vec2(t * 4.0, 0.0));
+    // Add noise-based variation for organic feel
+    float noiseFlicker = 0.9 + 0.1 * n(vec2(t * 1.5, 0.0));
     flicker *= noiseFlicker;
 
+    // Soft glow responds to flicker
     float glow = exp(-r * r * 1800.0) * flicker;
     float outerGlow = exp(-r * r * 400.0) * (0.3 + flicker * 0.2);
 
+    // Surface texture - subtle granulation
     float texture = 0.9 + 0.1 * fbm2(vec2(atan(p.y, p.x) * 3.0, r * 20.0 + t * 0.5));
 
     vec3 col = vec3(0.88, 0.93, 1.0) * core * 2.8 * texture * flicker;
     col += blue * 1.2 * glow * 0.7;
     col += teal * outerGlow * 0.35;
 
-    float beamAng = t * 0.8;
-    vec2 bd = vec2(cos(beamAng), sin(beamAng));
+    // ─── PRECESSING LIGHTHOUSE BEAMS ───
+    // The pulsar's rotation axis wobbles (precession)
+    float precessionPeriod = 15.0; // Slow wobble
+    float precessionAngle = 0.3 * sin(t * TAU / precessionPeriod);
 
-    float d1 = abs(dot(p, vec2(-bd.y, bd.x)));
-    float d2 = abs(dot(p, vec2(bd.y, -bd.x)));
+    // Pulsar spin - visible rotation (~1.5 rotations per second)
+    float spinRate = 1.5;
+    float spinAngle = t * spinRate;
 
-    float beam = exp(-d1 * d1 * 80.0) + exp(-d2 * d2 * 80.0);
-    beam *= exp(-r * 2.0) * 0.5;
-    beam *= smoothstep(0.0, 0.08, r);
+    // Combine precession with spin
+    float beamAngle = spinAngle + precessionAngle;
 
-    col += blue * 0.4 * beam * 0.15;
+    // Rotate coordinates for beam calculation
+    mat2 beamRot = rot2D(beamAngle);
+    vec2 rotP = beamRot * p;
+
+    // Jet 1 - Primary beam (brighter when facing us)
+    float beamWidth1 = abs(rotP.x);
+    float beamDist1 = rotP.y;
+    float jet1 = exp(-beamWidth1 * beamWidth1 * 200.0);
+    jet1 *= exp(-abs(beamDist1) * 2.5);
+    jet1 *= smoothstep(0.0, 0.05, r); // Fade near core
+    jet1 *= smoothstep(0.8, 0.0, r);  // Fade at distance
+
+    // Jet visibility pulses as beam sweeps past our line of sight
+    float beamPulse1 = pow(max(0.0, cos(beamAngle * 2.0)), 4.0);
+    jet1 *= 0.4 + 0.6 * beamPulse1;
+
+    // Jet 2 - Opposite beam (180° offset, slightly dimmer)
+    vec2 rotP2 = rot2D(beamAngle + PI) * p;
+    float beamWidth2 = abs(rotP2.x);
+    float beamDist2 = rotP2.y;
+    float jet2 = exp(-beamWidth2 * beamWidth2 * 200.0);
+    jet2 *= exp(-abs(beamDist2) * 2.5);
+    jet2 *= smoothstep(0.0, 0.05, r);
+    jet2 *= smoothstep(0.8, 0.0, r);
+
+    float beamPulse2 = pow(max(0.0, cos(beamAngle * 2.0 + PI)), 8.0);
+    jet2 *= 0.3 + 0.7 * beamPulse2;
+
+    // Beam colors - slightly different for visual interest
+    vec3 jet1Col = mix(vec3(0.4, 0.7, 1.0), vec3(0.8, 0.9, 1.0), beamPulse1);
+    vec3 jet2Col = mix(vec3(0.3, 0.5, 0.9), vec3(0.7, 0.85, 1.0), beamPulse2);
+
+    // Add jets with HDR brightness
+    col += jet1Col * jet1 * 3.0;
+    col += jet2Col * jet2 * 2.0;
+
+    // ─── MAGNETOSPHERE ───
+    // Toroidal magnetic field glow
+    float magAngle = atan(p.y, p.x);
+    float magTorus = exp(-pow(r - 0.15, 2.0) * 100.0);
+    magTorus *= 0.5 + 0.5 * sin(magAngle * 4.0 + t * 3.0);
+    col += purple * 0.15 * magTorus;
+
+    // Soft magnetosphere halo
     col += teal * 0.12 * exp(-r * r * 120.0);
 
     return col * appear;
@@ -913,9 +1032,11 @@ vec3 blackhole(vec2 p, float t) {
 // MAIN - Compose scene with iOS glass physics
 // ══════════════════════════════════════════════════════════════
 
-// Helper to sample supernova at a UV position
+// Helper to sample stellar phenomena only (for compositing with separately-lensed background)
 vec3 sampleSupernova(vec2 uv, float t) {
     vec3 col = vec3(0.0);
+
+    // Foreground stellar phenomena (not affected by BH lensing - they're "in front")
     col += progenitor(uv, t);
     col += explosion(uv, t);
     col += remnant(uv, t, age);
@@ -928,6 +1049,18 @@ vec3 sampleSupernova(vec2 uv, float t) {
         col = mix(col, col + bh, bhAppear);
     }
 
+    return col;
+}
+
+// Complete scene sample including background (for blur sampling through glass)
+vec3 sampleSceneComplete(vec2 uv, float t) {
+    vec2 m = (M / R) * 2.0 - 1.0;
+    m.x *= R.x / R.y;
+    vec2 parallax = m * 0.08;
+
+    vec3 col = nebula(uv, t, parallax);
+    col += stars(uv, t, parallax) * 0.3;
+    col += sampleSupernova(uv, t);
     return col;
 }
 
@@ -958,7 +1091,7 @@ vec3 sampleWithBlur(vec2 uv, float blurRadius) {
 
         for (int i = 0; i < 5; i++) {
             vec2 sampleUV = uv + offsets[i] * blurRadius * 0.004;
-            vec3 s = sampleSupernova(sampleUV, T);
+            vec3 s = sampleSceneComplete(sampleUV, T);
             total += s * weights[i];
         }
     } else {
@@ -975,7 +1108,7 @@ vec3 sampleWithBlur(vec2 uv, float blurRadius) {
 
         for (int i = 0; i < 9; i++) {
             vec2 sampleUV = uv + offsets[i] * blurRadius * 0.003;
-            vec3 s = sampleSupernova(sampleUV, T);
+            vec3 s = sampleSceneComplete(sampleUV, T);
             total += s * weights[i];
         }
     }
@@ -1041,8 +1174,8 @@ void main() {
             if (mobile < 0.5) {
                 float caStrength = glass.refraction * 0.015 * (1.0 + totalFlash * 0.5);
                 vec2 caDir = normalize(glass.refractionOffset + vec2(0.001));
-                vec3 colR = sampleSupernova(refractedUV + caDir * caStrength, T);
-                vec3 colB = sampleSupernova(refractedUV - caDir * caStrength, T);
+                vec3 colR = sampleSceneComplete(refractedUV + caDir * caStrength, T);
+                vec3 colB = sampleSceneComplete(refractedUV - caDir * caStrength, T);
                 col = vec3(colR.r, col.g, colB.b);
             }
 
@@ -1079,7 +1212,7 @@ void main() {
             // Desktop: full chromatic aberration with color bleeding
             if (mobile > 0.5) {
                 // Simple sample with basic CA approximation
-                col = sampleSupernova(refractedUV, T);
+                col = sampleSceneComplete(refractedUV, T);
                 // Fake CA by shifting color channels slightly
                 float caShift = 0.02 * (1.0 + flashLevel * 2.0);
                 col.r *= 1.0 + caShift;
@@ -1092,16 +1225,16 @@ void main() {
                 caFlash *= (1.0 + flutter * flashLevel);
 
                 vec2 caDir = normalize(glass.refractionOffset + vec2(0.001));
-                vec3 colR = sampleSupernova(refractedUV + caDir * caFlash * 1.5, T);
-                vec3 colG = sampleSupernova(refractedUV, T);
-                vec3 colB = sampleSupernova(refractedUV - caDir * caFlash * 1.5, T);
+                vec3 colR = sampleSceneComplete(refractedUV + caDir * caFlash * 1.5, T);
+                vec3 colG = sampleSceneComplete(refractedUV, T);
+                vec3 colB = sampleSceneComplete(refractedUV - caDir * caFlash * 1.5, T);
                 col = vec3(colR.r, colG.g, colB.b);
 
                 // ═══ COLOR BLEEDING DURING FLASH ═══
                 if (flashLevel > 0.1) {
                     vec3 bleed = vec3(0.0);
-                    bleed.r = sampleSupernova(refractedUV + vec2(0.025, 0.0) * flashLevel, T).r;
-                    bleed.b = sampleSupernova(refractedUV - vec2(0.025, 0.0) * flashLevel, T).b;
+                    bleed.r = sampleSceneComplete(refractedUV + vec2(0.025, 0.0) * flashLevel, T).r;
+                    bleed.b = sampleSceneComplete(refractedUV - vec2(0.025, 0.0) * flashLevel, T).b;
                     col = mix(col, bleed, flashLevel * 0.35);
                 }
             }
@@ -1128,7 +1261,7 @@ void main() {
         // FALLBACK: Generic glass (shouldn't happen but safety net)
         // ═══════════════════════════════════════════════════════════
         } else {
-            col = sampleSupernova(refractedUV, T);
+            col = sampleSceneComplete(refractedUV, T);
             col += warmWhite * flash * exp(-length(refractedUV) * 1.2) * 1.5;
             col += warmWhite * screenFlash * 0.9;
         }
@@ -1144,21 +1277,27 @@ void main() {
     } else {
         // ═══ OUTSIDE GLASS: Full intensity supernova with gravitational effects ═══
 
-        // ═══ SHADER-BASED STARS WITH GRAVITATIONAL LENSING ═══
+        // ═══ SHADER-BASED BACKGROUND WITH GRAVITATIONAL LENSING ═══
         if (lensStrength > 0.01) {
-            // Apply gravitational lensing to star coordinates
-            vec2 lensedStarUV = gravitationalLens(gwDistortedUV, lensStrength, T);
-            col = stars(lensedStarUV, T, parallax) * 0.3;
+            // Apply gravitational lensing to background coordinates
+            vec2 lensedBgUV = gravitationalLens(gwDistortedUV, lensStrength, T);
 
-            // Add secondary lensed star images (ghost ring)
+            // Lensed nebula - warped by black hole gravity
+            col = nebula(lensedBgUV, T, parallax) * (1.0 + lensStrength * 0.3);
+
+            // Lensed stars
+            col += stars(lensedBgUV, T, parallax) * 0.3;
+
+            // Add secondary lensed ghost images (Einstein ring effect)
             if (lensStrength > 0.05 && mobile < 0.5) {
                 vec2 secondaryUV = secondaryLens(gwDistortedUV, lensStrength * 0.7);
                 float ringMask = smoothstep(0.06, 0.12, length(gwDistortedUV));
                 ringMask *= smoothstep(0.25, 0.15, length(gwDistortedUV));
                 col += stars(secondaryUV, T, parallax) * ringMask * 0.15;
+                col += nebula(secondaryUV * 0.85, T, parallax) * ringMask * 0.1;
             }
 
-            // Tertiary lensing for extreme cases
+            // Tertiary lensing for extreme cases (light orbited 2+ times)
             if (lensStrength > 0.3 && mobile < 0.5) {
                 vec2 tertiaryUV = tertiaryLens(gwDistortedUV, lensStrength * 0.5);
                 float innerRingMask = smoothstep(0.04, 0.08, length(gwDistortedUV));
@@ -1166,8 +1305,9 @@ void main() {
                 col += stars(tertiaryUV, T, parallax) * innerRingMask * 0.08;
             }
         } else {
-            // Normal stars without lensing
-            col = stars(gwDistortedUV, T, parallax) * 0.3;
+            // Normal background without lensing
+            col = nebula(gwDistortedUV, T, parallax);
+            col += stars(gwDistortedUV, T, parallax) * 0.3;
         }
 
         // Main supernova with GW distortion
@@ -1279,40 +1419,22 @@ function queryContentBoxes(): ContentBox[] {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
-    // ═══ TYPE 1: VIZ BOXES - Interactive visualization containers ═══
-    // These get light pooling effect (light accumulates inside)
-    const vizBoxSelectors = [
-        '#glass-forest-container',
-        '#payoff-matrix-container',
-        '#light-cone-container',
-        '#thermo-container',
-        '#signal-container',
-        '#chain-container',
-        '#joining-container',
-        '#carol-choice-container',
-        '#window-container',
-        '#mirror-container',
-        '#suspicion-chain-container',
-        '#transmission-container',
-        '#credence-container',
-        '#real-sky-container'
-    ];
+    // ═══════════════════════════════════════════════════════════════
+    // CONTENT BOX SYSTEM - DISABLED
+    // ═══════════════════════════════════════════════════════════════
+    // The original stardust reference had ONE glass pane.
+    // Our page has MANY panels, which creates visual noise from
+    // overlapping edge effects. Instead:
+    // - WebGL renders the cosmic event (supernova, stars, GW lensing)
+    // - CSS handles panel-level glass effects via .df-glass-active overlay system
+    //
+    // All selectors are empty to disable WebGL box effects.
+    // The CSS system provides rim glow, backdrop-filter, etc.
+    // ═══════════════════════════════════════════════════════════════
 
-    // ═══ TYPE 1: STRUCTURAL ELEMENTS - Also get light pooling ═══
-    const structuralSelectors = [
-        '.card',
-        '.content-card',
-        '.glass-node-container',
-        '.visualization-container',
-        'footer'
-    ];
-    // NOTE: 'nav' is EXCLUDED - not in any selector list
-
-    // ═══ TYPE 2: TEXT BOXES - Dramatic refraction/warping ═══
-    const textBoxSelectors = [
-        '.collapsible-content',
-        'blockquote'
-    ];
+    const vizBoxSelectors: string[] = [];
+    const structuralSelectors: string[] = [];
+    const textBoxSelectors: string[] = [];
 
     // Query viz boxes (Type 1, highest priority)
     vizBoxSelectors.forEach(selector => {
@@ -1544,39 +1666,34 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         }
         lastGlassQuery = now;
 
-        // Panel selectors - innermost visible containers that get rim effects
-        // These get both 'glass-active' (text colors) and 'glass-panel' (pseudo-elements)
+        // STYLED PANELS ONLY - elements with VISIBLE BACKGROUNDS
+        // These get: rim effects (::before/::after), backdrop blur, BH/GW transforms
+        //
+        // EXCLUDED (no visible background):
+        //   .section-header, .closing, .verdict, .ascii-content, .prose, footer,
+        //   .hero, .choice-option, .show-title, .collapsible, .collapsible-content
         const panelSelectors = [
-            // Collapsible: header is separate panel, inner is content panel
-            '.collapsible-header',
+            // Collapsible inner content (styled, NOT the outer .collapsible wrapper)
+            // NOTE: .collapsible-header excluded - creates horizontal bar glows
             '.collapsible-inner',
-            // Cards and containers
+            // Styled cards and boxes (have backgrounds)
             'blockquote',
             '.card',
-            '.content-card',
-            '.visualization-container',
             '.distinction-card',
             '.equation-box',
             '.interactive-box',
-            '.section-header',
-            '.hero-quote',
             '.show-quote',
-            '.show-title',
-            // ASCII interactive: header and content are separate panels
-            '.ascii-header',
-            '.ascii-content',
-            // Prose and footer
-            '.prose',
-            'footer'
-        ];
-
-        // Container selectors - parents that need text color inheritance only
-        // These only get 'glass-active' (no pseudo-elements to avoid stacking)
-        const containerSelectors = [
-            '.thought-experiment',
+            '.thought-experiment',  // Has gradient background + border
+            // ASCII interactive - outer container has background, NOT .ascii-content
+            // NOTE: .ascii-header excluded - creates horizontal bar glows
             '.ascii-interactive',
-            '.collapsible',
-            '.collapsible-content',
+            // Credence bars (styled)
+            '.credence-bar',
+            // Character and hybrid cards (styled)
+            '.character-card',
+            '.hybrid-card',
+            // Attribution (styled)
+            '.attribution',
         ];
 
         const elements: HTMLElement[] = [];
@@ -1595,8 +1712,7 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         };
 
         // Collect all visible elements
-        const allSelectors = [...panelSelectors, ...containerSelectors];
-        allSelectors.forEach(selector => {
+        panelSelectors.forEach(selector => {
             document.querySelectorAll(selector).forEach(el => {
                 const htmlEl = el as HTMLElement;
                 if (isVisibleInViewport(htmlEl)) {
@@ -1605,18 +1721,68 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
             });
         });
 
-        // Mark which elements are panels (innermost - get pseudo-elements)
-        const panelSet = new Set<string>(panelSelectors);
-        elements.forEach(el => {
-            // Check if this element matches any panel selector
-            const isPanel = panelSelectors.some(sel => el.matches(sel));
-            if (isPanel) {
-                el.classList.add('glass-panel');
-            }
-        });
-
         glassElements = elements;
         return elements;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // OVERLAY INJECTION SYSTEM
+    // Dynamic injection of glass overlay divs (matching stardust architecture)
+    // ═══════════════════════════════════════════════════════════════════
+
+    // HTML template for glass overlay structure (8 effect layers)
+    const GLASS_OVERLAY_HTML = `
+<div class="df-glass-overlay">
+    <div class="df-glass-bloom"></div>
+    <div class="df-glass-flash"></div>
+    <div class="df-glass-warm"></div>
+    <div class="df-glass-nebula"></div>
+    <div class="df-glass-edge"></div>
+    <div class="df-glass-caustic"></div>
+    <div class="df-glass-highlight"></div>
+    <div class="df-glass-noise"></div>
+</div>`;
+
+    // Track elements that have received overlays (for cleanup)
+    const overlayElements = new Set<HTMLElement>();
+
+    // Inject overlay divs into glass elements
+    // Called each frame to handle newly visible elements
+    function injectGlassOverlays(elements: HTMLElement[]): void {
+        elements.forEach(element => {
+            // Skip if already has overlay
+            if (overlayElements.has(element)) return;
+
+            // Add active class for positioning context
+            element.classList.add('df-glass-active');
+
+            // Inject overlay as first child
+            element.insertAdjacentHTML('afterbegin', GLASS_OVERLAY_HTML);
+
+            // Track this element
+            overlayElements.add(element);
+        });
+    }
+
+    // Toggle black hole active class based on phase
+    function updateBlackHoleClass(elements: HTMLElement[], bhActive: boolean): void {
+        elements.forEach(element => {
+            element.classList.toggle('bh-active', bhActive);
+        });
+    }
+
+    // Remove overlay divs from all tracked glass elements
+    function removeGlassOverlays(): void {
+        overlayElements.forEach(element => {
+            // Remove overlay container
+            const overlay = element.querySelector('.df-glass-overlay');
+            if (overlay) overlay.remove();
+
+            // Remove classes
+            element.classList.remove('df-glass-active', 'bh-active');
+        });
+
+        overlayElements.clear();
     }
 
     // Set CSS variable with caching to avoid redundant DOM writes
@@ -1739,11 +1905,25 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
 
         // Combine sampled luminance with event luminance
         const sampledLum = (0.2126 * glassRGB[0] + 0.7152 * glassRGB[1] + 0.0722 * glassRGB[2]) / 255;
-        const targetLum = clamp01(sampledLum * 0.5 + eventLum);
 
-        // Smooth the luminance
+        // ─── BASE LUMINANCE FLOOR ───
+        // Ensures effects are visible throughout the event, not just during flash
+        // Progenitor phase: gentle buildup as star swells
+        const progenitorGlow = smoothstep(0, 8, t) * smoothstep(10.5, 9, t) * 0.15;
+        // Remnant phase: residual glow from explosion
+        const remnantGlow = smoothstep(10.5, 12, t) * smoothstep(20, 14, t) * 0.25;
+        // Black hole phase: accretion disk ambient light
+        const bhGlow = config.fate > 0.5 ? smoothstep(16, 24, t) * 0.2 : 0;
+        // Neutron star: pulsar glow
+        const nsGlow = config.fate < 0.5 ? smoothstep(14, 18, t) * 0.18 : 0;
+
+        const baseLum = Math.max(progenitorGlow, remnantGlow, bhGlow, nsGlow);
+        const targetLum = clamp01(sampledLum * 0.5 + eventLum + baseLum);
+
+        // Smooth the luminance - faster during flash for responsiveness
+        const smoothingRate = eventLum > 0.3 ? 0.25 : 0.12;
         const delta = targetLum - glassLum;
-        glassLum += delta * 0.12;
+        glassLum += delta * smoothingRate;
 
         // Impulse tracks rate of change + direct flash contribution
         glassImpulse += (Math.abs(delta) - glassImpulse) * 0.15;
@@ -1837,11 +2017,16 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         const borderB = Math.round(215 + glassLum * 40);
         const borderA = 0.08 + glassLum * 0.4;
 
+        // ─── INJECT OVERLAYS (first frame only) ───
+        injectGlassOverlays(elements);
+
+        // ─── TOGGLE BLACK HOLE CLASS ───
+        // BH phase starts at t>16 with fate>0.5
+        const bhPhaseActive = t > 16 && bhStrength > 0.1;
+        updateBlackHoleClass(elements, bhPhaseActive);
+
         // ─── UPDATE CSS VARIABLES ON ALL GLASS ELEMENTS ───
         elements.forEach(element => {
-            // Add glass-active class for CSS effects
-            element.classList.add('glass-active');
-
             // Core values
             setGlassVar(element, '--lum', glassLum.toFixed(3));
             setGlassVar(element, '--impulse', imp.toFixed(3));
@@ -1877,14 +2062,13 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         });
     }
 
-    // Clear glass CSS variables when effect ends
+    // Clear glass CSS variables and remove overlays when effect ends
     function clearGlassEffects(): void {
-        glassElements.forEach(element => {
-            // Remove glass classes
-            element.classList.remove('glass-active');
-            element.classList.remove('glass-panel');
+        // Remove overlay divs and classes
+        removeGlassOverlays();
 
-            // Reset all CSS variables
+        // Reset all CSS variables
+        glassElements.forEach(element => {
             element.style.removeProperty('--lum');
             element.style.removeProperty('--impulse');
             element.style.removeProperty('--tint-r');
@@ -2047,12 +2231,18 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         glassRGB = [180, 170, 200];
         lightDir = [0, -0.7];
 
+        // Reset overlay injection state
+        overlayElements.clear();
+
         resize();
         contentBoxes = queryContentBoxes();
 
         window.addEventListener('resize', resize);
         window.addEventListener('mousemove', handleMouseMove);
         window.addEventListener('scroll', handleScroll, { passive: true });
+
+        // Start cosmic audio (synced with visual)
+        startCosmicAudio(config.fate);
 
         // Fade in
         requestAnimationFrame(() => {
@@ -2073,6 +2263,9 @@ export function createWebGLSupernova(config: WebGLSupernovaConfig): WebGLSuperno
         window.removeEventListener('resize', resize);
         window.removeEventListener('mousemove', handleMouseMove);
         window.removeEventListener('scroll', handleScroll);
+
+        // Stop cosmic audio
+        stopCosmicAudio();
 
         // Clean up glass effects
         clearGlassEffects();

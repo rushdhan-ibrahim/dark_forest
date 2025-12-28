@@ -17,6 +17,7 @@ export * from './effects';
 export * from './joining';
 export * from './atmosphere';
 export * from './whispers';
+export * from './cosmic';
 
 /**
  * Fade in the audio smoothly
